@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  AlertCircle,
   BarChart3,
   CalendarCheck,
   CalendarDays,
@@ -16,12 +17,24 @@ import { MetricCard, Notice, PageHeader } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDateBR, inferServiceType, SERVICE_LABELS, todayInputValue } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
-import type { Attendance, ServiceType } from "@/lib/types";
+import type { Attendance, Member, Service, ServiceType } from "@/lib/types";
 
 type Summary = {
   total: number;
   members: number;
   visitors: number;
+};
+
+type AbsenceAlert = {
+  missedTwoCount: number;
+  recentServiceCount: number;
+  lastServiceText: string;
+};
+
+const emptyAbsenceAlert: AbsenceAlert = {
+  missedTwoCount: 0,
+  recentServiceCount: 0,
+  lastServiceText: ""
 };
 
 export default function DashboardPage() {
@@ -39,7 +52,9 @@ function DashboardContent() {
     inferServiceType(todayInputValue())
   );
   const [summary, setSummary] = useState<Summary>({ total: 0, members: 0, visitors: 0 });
+  const [absenceAlert, setAbsenceAlert] = useState<AbsenceAlert>(emptyAbsenceAlert);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAlertLoading, setIsAlertLoading] = useState(false);
 
   const roleLabel = profile?.role === "lideranca" ? "Liderança" : "Recepção";
 
@@ -79,9 +94,118 @@ function DashboardContent() {
     setIsLoading(false);
   }, [serviceDate, serviceType]);
 
+  const loadAbsenceAlert = useCallback(async () => {
+    if (profile?.role !== "lideranca") {
+      setAbsenceAlert(emptyAbsenceAlert);
+      setIsAlertLoading(false);
+      return;
+    }
+
+    setIsAlertLoading(true);
+
+    const { data: servicesData, error: servicesError } = await supabase
+      .from("services")
+      .select("id, service_date, service_type, created_at")
+      .lte("service_date", todayInputValue())
+      .order("service_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(2);
+
+    if (servicesError) {
+      setAbsenceAlert(emptyAbsenceAlert);
+      setIsAlertLoading(false);
+      return;
+    }
+
+    const recentServices = (servicesData ?? []) as Pick<
+      Service,
+      "id" | "service_date" | "service_type" | "created_at"
+    >[];
+
+    if (recentServices.length < 2) {
+      const latestService = recentServices[0];
+      setAbsenceAlert({
+        missedTwoCount: 0,
+        recentServiceCount: recentServices.length,
+        lastServiceText: latestService
+          ? `${SERVICE_LABELS[latestService.service_type]} em ${formatDateBR(latestService.service_date)}`
+          : ""
+      });
+      setIsAlertLoading(false);
+      return;
+    }
+
+    const { data: membersData, error: membersError } = await supabase
+      .from("members")
+      .select("id")
+      .eq("status", "ativo");
+
+    if (membersError) {
+      setAbsenceAlert(emptyAbsenceAlert);
+      setIsAlertLoading(false);
+      return;
+    }
+
+    const activeMemberIds = ((membersData ?? []) as Pick<Member, "id">[]).map(
+      (member) => member.id
+    );
+
+    if (activeMemberIds.length === 0) {
+      setAbsenceAlert({
+        missedTwoCount: 0,
+        recentServiceCount: recentServices.length,
+        lastServiceText: `${SERVICE_LABELS[recentServices[0].service_type]} em ${formatDateBR(
+          recentServices[0].service_date
+        )}`
+      });
+      setIsAlertLoading(false);
+      return;
+    }
+
+    const serviceIds = recentServices.map((service) => service.id);
+    const { data: attendancesData, error: attendancesError } = await supabase
+      .from("attendances")
+      .select("person_id, service_id, person_type")
+      .eq("person_type", "membro")
+      .in("service_id", serviceIds);
+
+    if (attendancesError) {
+      setAbsenceAlert(emptyAbsenceAlert);
+      setIsAlertLoading(false);
+      return;
+    }
+
+    const presentByService = new Map<string, Set<string>>();
+    ((attendancesData ?? []) as Pick<
+      Attendance,
+      "person_id" | "service_id" | "person_type"
+    >[]).forEach((attendance) => {
+      const currentSet = presentByService.get(attendance.service_id) ?? new Set<string>();
+      currentSet.add(attendance.person_id);
+      presentByService.set(attendance.service_id, currentSet);
+    });
+
+    const missedTwoCount = activeMemberIds.filter((memberId) =>
+      recentServices.every((service) => !presentByService.get(service.id)?.has(memberId))
+    ).length;
+
+    setAbsenceAlert({
+      missedTwoCount,
+      recentServiceCount: recentServices.length,
+      lastServiceText: `${SERVICE_LABELS[recentServices[0].service_type]} em ${formatDateBR(
+        recentServices[0].service_date
+      )}`
+    });
+    setIsAlertLoading(false);
+  }, [profile?.role]);
+
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
+
+  useEffect(() => {
+    loadAbsenceAlert();
+  }, [loadAbsenceAlert]);
 
   const actions = useMemo(
     () => [
@@ -172,6 +296,48 @@ function DashboardContent() {
           {SERVICE_LABELS[serviceType]} em {formatDateBR(serviceDate)}
         </p>
       </section>
+
+      {profile?.role === "lideranca" ? (
+        <section
+          className={`mb-5 rounded-card border p-4 shadow-soft sm:p-5 ${
+            absenceAlert.missedTwoCount > 0
+              ? "border-wine/30 bg-wine/5"
+              : "border-line bg-white"
+          }`}
+        >
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-card ${
+                  absenceAlert.missedTwoCount > 0
+                    ? "bg-wine/10 text-wine"
+                    : "bg-forest/10 text-forest"
+                }`}
+              >
+                <AlertCircle aria-hidden="true" size={20} />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-ink">Alerta de faltas seguidas</p>
+                {isAlertLoading ? (
+                  <p className="mt-1 text-sm text-muted">Verificando os últimos cultos...</p>
+                ) : absenceAlert.recentServiceCount < 2 ? (
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    Cadastre pelo menos 2 cultos para o sistema calcular faltas seguidas.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    {absenceAlert.missedTwoCount} membros ativos faltaram nos 2 últimos cultos.
+                    {absenceAlert.lastServiceText ? ` Último culto: ${absenceAlert.lastServiceText}.` : ""}
+                  </p>
+                )}
+              </div>
+            </div>
+            <Link className="secondary-button w-full sm:w-auto" href="/relatorios">
+              Ver relatórios
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       {isLoading ? (
         <Notice title="Carregando resumo..." />
