@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   CalendarCheck,
-  Church,
   HeartHandshake,
   Home,
   LogOut,
@@ -39,12 +39,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link className="flex min-w-0 items-center gap-3" href="/">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-forest text-white">
-              <Church aria-hidden="true" size={22} />
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-card border border-line bg-white p-1 shadow-soft">
+              <Image
+                alt=""
+                aria-hidden="true"
+                className="h-9 w-9 object-contain"
+                height={40}
+                priority
+                src="/iasd-calcada-marca.png"
+                width={40}
+              />
             </span>
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold text-ink">
-                Presença Igreja
+                IASD Calçada
               </span>
               <span className="block truncate text-xs text-muted">
                 {profile?.role === "lideranca" ? "Liderança" : "Recepção"}

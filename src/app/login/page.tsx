@@ -1,8 +1,9 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Church, LogIn } from "lucide-react";
+import { LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Notice } from "@/components/ui";
@@ -54,14 +55,17 @@ function LoginForm() {
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-10">
       <section className="w-full max-w-md rounded-card border border-line bg-white p-5 shadow-soft sm:p-6">
-        <div className="mb-6 flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-card bg-forest text-white">
-            <Church aria-hidden="true" size={24} />
-          </span>
-          <div>
-            <h1 className="text-xl font-semibold text-ink">Controle de Presença</h1>
-            <p className="text-sm text-muted">Acesso da recepção e liderança</p>
-          </div>
+        <div className="mb-6 text-center">
+          <Image
+            alt="Igreja Adventista do Sétimo Dia - Calçada"
+            className="mx-auto mb-4 h-auto w-full max-w-72 object-contain"
+            height={220}
+            priority
+            src="/iasd-calcada-logo.png"
+            width={320}
+          />
+          <h1 className="text-xl font-semibold text-ink">Controle de Presença</h1>
+          <p className="text-sm text-muted">Acesso da recepção e liderança</p>
         </div>
 
         {!isSupabaseConfigured ? (

@@ -9,18 +9,18 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#202820",
-        paper: "#f7f8f5",
+        ink: "#26141c",
+        paper: "#fbf7f8",
         surface: "#ffffff",
-        line: "#dfe5dc",
-        forest: "#1f6f5b",
-        forestDark: "#174d42",
-        wine: "#8d334f",
-        gold: "#b99b35",
-        muted: "#657064"
+        line: "#eadde2",
+        forest: "#780032",
+        forestDark: "#570024",
+        wine: "#9c1748",
+        gold: "#b89a5e",
+        muted: "#71636a"
       },
       boxShadow: {
-        soft: "0 12px 30px rgba(32, 40, 32, 0.08)"
+        soft: "0 12px 30px rgba(120, 0, 50, 0.08)"
       },
       borderRadius: {
         card: "8px"

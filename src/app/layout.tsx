@@ -3,8 +3,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Controle de Presença | Igreja",
-  description: "Registro de presença de membros e visitantes culto por culto."
+  title: "Controle de Presença | IASD Calçada",
+  description: "Registro de presença da Igreja Adventista do Sétimo Dia - Calçada."
 };
 
 export default function RootLayout({
