@@ -1,10 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit3, Save, Search, UsersRound, X } from "lucide-react";
+import { AlertCircle, Edit3, FileSpreadsheet, Save, Search, Upload, UsersRound, X } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  prepareMemberImportRows,
+  readMemberImportFile,
+  type MemberImportRow
+} from "@/lib/memberImport";
 import { supabase } from "@/lib/supabase";
 import type { Member, MemberStatus } from "@/lib/types";
 
@@ -47,6 +52,11 @@ function MembersContent() {
   const [filters, setFilters] = useState(initialFilters);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [importRows, setImportRows] = useState<MemberImportRow[]>([]);
+  const [importFileName, setImportFileName] = useState("");
+  const [importMessage, setImportMessage] = useState("");
+  const [isReadingImport, setIsReadingImport] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   const loadMembers = useCallback(async () => {
     const { data } = await supabase
@@ -85,6 +95,13 @@ function MembersContent() {
       return matchesSearch && matchesStatus && matchesNeighborhood && matchesMinistry;
     });
   }, [filters, members]);
+
+  const validImportRows = useMemo(
+    () => importRows.filter((row) => row.errors.length === 0 && !row.isDuplicate),
+    [importRows]
+  );
+
+  const importProblemCount = importRows.length - validImportRows.length;
 
   function resetForm() {
     setForm(initialForm);
@@ -142,12 +159,81 @@ function MembersContent() {
     await loadMembers();
   }
 
+  async function handleImportFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    setIsReadingImport(true);
+    setImportMessage("");
+    setImportFileName(file.name);
+    setImportRows([]);
+
+    try {
+      const rawRows = await readMemberImportFile(file);
+      const preparedRows = prepareMemberImportRows(rawRows, members);
+
+      setImportRows(preparedRows);
+      setImportMessage(
+        preparedRows.length > 0
+          ? `${preparedRows.length} linhas encontradas para revisão.`
+          : "Nenhum cadastro encontrado no arquivo."
+      );
+    } catch (error) {
+      setImportMessage(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível ler o arquivo selecionado."
+      );
+    }
+
+    setIsReadingImport(false);
+  }
+
+  async function handleBulkImport() {
+    if (validImportRows.length === 0 || isImporting) return;
+
+    setIsImporting(true);
+    setImportMessage("");
+
+    const payload = validImportRows.map((row) => ({
+      full_name: row.full_name,
+      phone: row.phone || null,
+      neighborhood: row.neighborhood || null,
+      ministry: row.ministry || null,
+      status: row.status,
+      notes: row.notes || null,
+      created_by: session?.user.id ?? null
+    }));
+
+    const chunkSize = 100;
+
+    for (let index = 0; index < payload.length; index += chunkSize) {
+      const chunk = payload.slice(index, index + chunkSize);
+      const { error } = await supabase.from("members").insert(chunk);
+
+      if (error) {
+        setImportMessage("Não foi possível importar todos os membros.");
+        setIsImporting(false);
+        return;
+      }
+    }
+
+    setImportMessage(`${validImportRows.length} membros importados com sucesso.`);
+    setImportRows([]);
+    setImportFileName("");
+    setIsImporting(false);
+    await loadMembers();
+  }
+
   return (
     <div>
       <PageHeader eyebrow="Cadastro" title="Membros" />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
-        <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+        <div className="space-y-5">
+          <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
           <form className="grid gap-4" id="member-form" onSubmit={handleSubmit}>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -246,7 +332,126 @@ function MembersContent() {
                   : "Salvar membro"}
             </button>
           </form>
-        </section>
+          </section>
+
+          <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="mb-2 flex items-center gap-2">
+                  <FileSpreadsheet aria-hidden="true" size={19} />
+                  <h2 className="text-base font-semibold text-ink">Importar membros em massa</h2>
+                </div>
+                <p className="text-sm leading-6 text-muted">
+                  Envie Excel, CSV ou PDF com colunas como Nome, Telefone, Bairro, Ministério,
+                  Status e Observações.
+                </p>
+              </div>
+              <label className="primary-button w-full cursor-pointer sm:w-auto">
+                <Upload aria-hidden="true" size={18} />
+                {isReadingImport ? "Lendo..." : "Escolher arquivo"}
+                <input
+                  accept=".xlsx,.xls,.csv,.txt,.pdf"
+                  className="sr-only"
+                  disabled={isReadingImport || isImporting}
+                  onChange={handleImportFileChange}
+                  type="file"
+                />
+              </label>
+            </div>
+
+            <div className="mb-4 rounded-card border border-line bg-paper p-3 text-sm leading-6 text-muted">
+              <p className="font-medium text-ink">Modelo recomendado de colunas:</p>
+              <p>Nome | Telefone | Bairro | Ministério | Status | Observações</p>
+              <p>Status pode ser: ativo, afastado ou transferido.</p>
+              <p>PDF precisa ter texto/tabela. PDF escaneado como imagem pode não ser lido.</p>
+            </div>
+
+            {importMessage ? (
+              <Notice
+                title={importMessage}
+                tone={importMessage.includes("sucesso") ? "success" : "warning"}
+              />
+            ) : null}
+
+            {importRows.length > 0 ? (
+              <div className="mt-4 space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-ink">{importFileName}</p>
+                    <p className="text-sm text-muted">
+                      {validImportRows.length} prontos para importar
+                      {importProblemCount > 0 ? `, ${importProblemCount} ignorados` : ""}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="secondary-button min-h-10 px-3 py-2"
+                      disabled={isImporting}
+                      onClick={() => {
+                        setImportRows([]);
+                        setImportFileName("");
+                        setImportMessage("");
+                      }}
+                      type="button"
+                    >
+                      <X aria-hidden="true" size={17} />
+                      Limpar
+                    </button>
+                    <button
+                      className="primary-button min-h-10 px-3 py-2"
+                      disabled={validImportRows.length === 0 || isImporting}
+                      onClick={handleBulkImport}
+                      type="button"
+                    >
+                      <Upload aria-hidden="true" size={17} />
+                      {isImporting ? "Importando..." : `Importar ${validImportRows.length}`}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-[420px] overflow-y-auto rounded-card border border-line">
+                  {importRows.map((row) => {
+                    const hasProblem = row.errors.length > 0 || row.isDuplicate;
+
+                    return (
+                      <div className="border-b border-line p-3 last:border-0" key={row.id}>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-ink">
+                                {row.full_name || "Sem nome"}
+                              </p>
+                              <StatusBadge tone={hasProblem ? "warning" : "success"}>
+                                {hasProblem ? "Ignorado" : "Pronto"}
+                              </StatusBadge>
+                            </div>
+                            <p className="text-sm text-muted">
+                              {row.phone || "Sem telefone"} - {row.neighborhood || "Sem bairro"}
+                            </p>
+                            <p className="text-xs text-muted">
+                              {row.ministry || "Sem ministério"} - {row.status}
+                            </p>
+                          </div>
+
+                          {hasProblem ? (
+                            <div className="flex shrink-0 items-start gap-2 text-sm text-muted sm:max-w-48">
+                              <AlertCircle aria-hidden="true" className="mt-0.5 text-gold" size={16} />
+                              <span>
+                                {[...row.errors, row.isDuplicate ? "Possível duplicado" : ""]
+                                  .filter(Boolean)
+                                  .join(", ")}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
+          </section>
+        </div>
 
         <aside className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
           <div className="mb-4 flex items-center justify-between gap-3">
