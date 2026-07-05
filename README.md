@@ -20,6 +20,7 @@ App web responsivo para a recepção registrar presença de membros e visitantes
 - Cadastro rápido de visitante durante o check-in.
 - Bloqueio de presença duplicada da mesma pessoa no mesmo culto.
 - Relatórios de ausências e visitantes recorrentes.
+- Acompanhamento pastoral de membros com faltas seguidas, com WhatsApp, observações e status.
 
 ## Rodar localmente
 
@@ -54,7 +55,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-publica
 1. `supabase/01_base.sql`
 2. `supabase/02_functions_triggers.sql`
 3. `supabase/03_security_policies.sql`
-4. Opcional para teste: `supabase/04_seed_test_members.sql`
+4. `supabase/07_member_followups.sql`
+5. Opcional para teste: `supabase/04_seed_test_members.sql`
 
 Cole cada arquivo inteiro no SQL Editor e execute. Não execute começando no meio do arquivo.
 
@@ -114,6 +116,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/03_security_policies.sql`
 - `supabase/04_seed_test_members.sql` para cadastrar 10 membros de teste
 - `supabase/06_lideranca_full_access.sql` para atualizar projetos antigos e liberar liderança em todo o sistema
+- `supabase/07_member_followups.sql` para criar o acompanhamento pastoral
 
 Eles criam:
 

@@ -2,6 +2,7 @@ export type UserRole = "recepcao" | "lideranca";
 export type MemberStatus = "ativo" | "afastado" | "transferido";
 export type ServiceType = "quarta" | "sabado" | "especial";
 export type PersonType = "membro" | "visitante";
+export type FollowUpStatus = "pendente" | "acompanhado";
 
 export type Profile = {
   id: string;
@@ -54,6 +55,20 @@ export type Attendance = {
   service_type: ServiceType;
   registered_by: string | null;
   created_at: string;
+};
+
+export type MemberFollowUp = {
+  id: string;
+  member_id: string;
+  last_service_id: string;
+  last_service_date: string;
+  absence_streak: number;
+  status: FollowUpStatus;
+  notes: string | null;
+  contacted_by: string | null;
+  contacted_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Database = {
@@ -130,6 +145,24 @@ export type Database = {
           created_at?: string;
         };
         Update: Partial<Omit<Attendance, "id" | "created_at">>;
+        Relationships: [];
+      };
+      member_followups: {
+        Row: MemberFollowUp;
+        Insert: {
+          id?: string;
+          member_id: string;
+          last_service_id: string;
+          last_service_date: string;
+          absence_streak: number;
+          status?: FollowUpStatus;
+          notes?: string | null;
+          contacted_by?: string | null;
+          contacted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<MemberFollowUp, "id" | "created_at">>;
         Relationships: [];
       };
     };

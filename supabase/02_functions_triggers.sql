@@ -15,6 +15,11 @@ create trigger visitors_set_updated_at
 before update on public.visitors
 for each row execute function public.set_updated_at();
 
+drop trigger if exists member_followups_set_updated_at on public.member_followups;
+create trigger member_followups_set_updated_at
+before update on public.member_followups
+for each row execute function public.set_updated_at();
+
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as '
 begin
   insert into public.profiles (id, full_name, role)

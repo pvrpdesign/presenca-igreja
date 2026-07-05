@@ -3,6 +3,7 @@ alter table public.members enable row level security;
 alter table public.visitors enable row level security;
 alter table public.services enable row level security;
 alter table public.attendances enable row level security;
+alter table public.member_followups enable row level security;
 
 drop policy if exists "Users can read own profile" on public.profiles;
 create policy "Users can read own profile"
@@ -98,9 +99,32 @@ for insert
 to authenticated
 with check (public.current_user_role() in ('recepcao', 'lideranca'));
 
+drop policy if exists "Leadership can read member followups" on public.member_followups;
+create policy "Leadership can read member followups"
+on public.member_followups
+for select
+to authenticated
+using (public.current_user_role() = 'lideranca');
+
+drop policy if exists "Leadership can insert member followups" on public.member_followups;
+create policy "Leadership can insert member followups"
+on public.member_followups
+for insert
+to authenticated
+with check (public.current_user_role() = 'lideranca');
+
+drop policy if exists "Leadership can update member followups" on public.member_followups;
+create policy "Leadership can update member followups"
+on public.member_followups
+for update
+to authenticated
+using (public.current_user_role() = 'lideranca')
+with check (public.current_user_role() = 'lideranca');
+
 grant usage on schema public to anon, authenticated;
 grant select on public.profiles to authenticated;
 grant select, insert, update on public.members to authenticated;
 grant select, insert, update on public.visitors to authenticated;
 grant select, insert, update on public.services to authenticated;
 grant select, insert on public.attendances to authenticated;
+grant select, insert, update on public.member_followups to authenticated;

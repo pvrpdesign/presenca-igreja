@@ -6,6 +6,7 @@ import {
   BarChart3,
   CalendarCheck,
   Church,
+  HeartHandshake,
   Home,
   LogOut,
   UserPlus,
@@ -19,6 +20,7 @@ const navigation = [
   { href: "/presenca", label: "Presença", icon: CalendarCheck },
   { href: "/membros", label: "Membros", icon: UsersRound },
   { href: "/visitantes", label: "Visitantes", icon: UserPlus },
+  { href: "/acompanhamento", label: "Acomp.", icon: HeartHandshake },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 }
 ];
 
@@ -100,7 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-label="Principal"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white md:hidden"
       >
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-6">
           {navigation.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;

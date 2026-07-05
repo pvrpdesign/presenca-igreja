@@ -8,6 +8,7 @@ import {
   CalendarCheck,
   CalendarDays,
   ClipboardCheck,
+  HeartHandshake,
   Search,
   UserPlus,
   UsersRound
@@ -27,12 +28,14 @@ type Summary = {
 
 type AbsenceAlert = {
   missedTwoCount: number;
+  pendingFollowUpsCount: number;
   recentServiceCount: number;
   lastServiceText: string;
 };
 
 const emptyAbsenceAlert: AbsenceAlert = {
   missedTwoCount: 0,
+  pendingFollowUpsCount: 0,
   recentServiceCount: 0,
   lastServiceText: ""
 };
@@ -126,6 +129,7 @@ function DashboardContent() {
       const latestService = recentServices[0];
       setAbsenceAlert({
         missedTwoCount: 0,
+        pendingFollowUpsCount: 0,
         recentServiceCount: recentServices.length,
         lastServiceText: latestService
           ? `${SERVICE_LABELS[latestService.service_type]} em ${formatDateBR(latestService.service_date)}`
@@ -153,6 +157,7 @@ function DashboardContent() {
     if (activeMemberIds.length === 0) {
       setAbsenceAlert({
         missedTwoCount: 0,
+        pendingFollowUpsCount: 0,
         recentServiceCount: recentServices.length,
         lastServiceText: `${SERVICE_LABELS[recentServices[0].service_type]} em ${formatDateBR(
           recentServices[0].service_date
@@ -185,12 +190,26 @@ function DashboardContent() {
       presentByService.set(attendance.service_id, currentSet);
     });
 
-    const missedTwoCount = activeMemberIds.filter((memberId) =>
+    const missedTwoMemberIds = activeMemberIds.filter((memberId) =>
       recentServices.every((service) => !presentByService.get(service.id)?.has(memberId))
-    ).length;
+    );
+
+    let accompaniedCount = 0;
+
+    if (missedTwoMemberIds.length > 0) {
+      const { data: followUpsData } = await supabase
+        .from("member_followups")
+        .select("member_id, status")
+        .eq("last_service_id", recentServices[0].id)
+        .eq("status", "acompanhado")
+        .in("member_id", missedTwoMemberIds);
+
+      accompaniedCount = (followUpsData ?? []).length;
+    }
 
     setAbsenceAlert({
-      missedTwoCount,
+      missedTwoCount: missedTwoMemberIds.length,
+      pendingFollowUpsCount: Math.max(missedTwoMemberIds.length - accompaniedCount, 0),
       recentServiceCount: recentServices.length,
       lastServiceText: `${SERVICE_LABELS[recentServices[0].service_type]} em ${formatDateBR(
         recentServices[0].service_date
@@ -228,6 +247,12 @@ function DashboardContent() {
         tone: "bg-white text-ink hover:border-forest hover:text-forest"
       },
       {
+        href: "/acompanhamento",
+        label: "Acompanhamento",
+        icon: HeartHandshake,
+        tone: "bg-white text-ink hover:border-wine hover:text-wine"
+      },
+      {
         href: "/relatorios",
         label: "Relatórios",
         icon: BarChart3,
@@ -241,7 +266,7 @@ function DashboardContent() {
     <div>
       <PageHeader eyebrow={roleLabel} title="Dashboard" />
 
-      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {actions.map((action) => {
           const Icon = action.icon;
           return (
@@ -327,13 +352,15 @@ function DashboardContent() {
                 ) : (
                   <p className="mt-1 text-sm leading-6 text-muted">
                     {absenceAlert.missedTwoCount} membros ativos faltaram nos 2 últimos cultos.
+                    {" "}
+                    {absenceAlert.pendingFollowUpsCount} pendentes de acompanhamento.
                     {absenceAlert.lastServiceText ? ` Último culto: ${absenceAlert.lastServiceText}.` : ""}
                   </p>
                 )}
               </div>
             </div>
-            <Link className="secondary-button w-full sm:w-auto" href="/relatorios">
-              Ver relatórios
+            <Link className="secondary-button w-full sm:w-auto" href="/acompanhamento">
+              Abrir acompanhamento
             </Link>
           </div>
         </section>
