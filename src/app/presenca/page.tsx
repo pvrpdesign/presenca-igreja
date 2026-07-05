@@ -44,6 +44,9 @@ type CurrentAttendance = {
   createdAt: string;
 };
 
+type ResultFilter = "todos" | PersonType | "marcados" | "nao_marcados";
+type AttendanceListFilter = "todos" | PersonType;
+
 const emptyQuickVisitor: QuickVisitorForm = {
   full_name: "",
   phone: "",
@@ -54,6 +57,20 @@ const emptyQuickVisitor: QuickVisitorForm = {
 };
 
 const MIN_SEARCH_LENGTH = 2;
+
+const resultFilterOptions: { value: ResultFilter; label: string }[] = [
+  { value: "todos", label: "Todos" },
+  { value: "membro", label: "Membros" },
+  { value: "visitante", label: "Visitantes" },
+  { value: "nao_marcados", label: "Não marcados" },
+  { value: "marcados", label: "Marcados" }
+];
+
+const attendanceFilterOptions: { value: AttendanceListFilter; label: string }[] = [
+  { value: "todos", label: "Todos" },
+  { value: "membro", label: "Membros" },
+  { value: "visitante", label: "Visitantes" }
+];
 
 function normalizeSearchValue(value: string) {
   return value
@@ -94,8 +111,11 @@ function AttendanceContent() {
   );
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [resultFilter, setResultFilter] = useState<ResultFilter>("todos");
   const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
   const [currentAttendances, setCurrentAttendances] = useState<CurrentAttendance[]>([]);
+  const [attendanceListFilter, setAttendanceListFilter] =
+    useState<AttendanceListFilter>("todos");
   const [message, setMessage] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
@@ -107,6 +127,22 @@ function AttendanceContent() {
     () => `${SERVICE_LABELS[serviceType]} em ${formatDateBR(serviceDate)}`,
     [serviceDate, serviceType]
   );
+
+  const filteredResults = useMemo(() => {
+    return results.filter((person) => {
+      if (resultFilter === "todos") return true;
+      if (resultFilter === "marcados") return person.alreadyPresent;
+      if (resultFilter === "nao_marcados") return !person.alreadyPresent;
+      return person.kind === resultFilter;
+    });
+  }, [resultFilter, results]);
+
+  const filteredCurrentAttendances = useMemo(() => {
+    return currentAttendances.filter((attendance) => {
+      if (attendanceListFilter === "todos") return true;
+      return attendance.personType === attendanceListFilter;
+    });
+  }, [attendanceListFilter, currentAttendances]);
 
   const resultKey = useCallback((kind: PersonType, id: string) => `${kind}:${id}`, []);
 
@@ -502,9 +538,30 @@ function AttendanceContent() {
               {isSearching ? (
                 <span className="text-sm text-muted">Buscando...</span>
               ) : query.trim().length >= MIN_SEARCH_LENGTH ? (
-                <span className="text-sm text-muted">{results.length} encontrados</span>
+                <span className="text-sm text-muted">
+                  {filteredResults.length} de {results.length}
+                </span>
               ) : null}
             </div>
+
+            {results.length > 0 ? (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {resultFilterOptions.map((filter) => (
+                  <button
+                    className={
+                      filter.value === resultFilter
+                        ? "primary-button min-h-9 px-3 py-2 text-sm"
+                        : "secondary-button min-h-9 px-3 py-2 text-sm"
+                    }
+                    key={filter.value}
+                    onClick={() => setResultFilter(filter.value)}
+                    type="button"
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
 
             {query.trim().length < MIN_SEARCH_LENGTH ? (
               <p className="text-sm text-muted">Digite 2 letras para localizar membros e visitantes.</p>
@@ -516,9 +573,17 @@ function AttendanceContent() {
                   Cadastrar visitante rapidamente
                 </button>
               </div>
+            ) : filteredResults.length === 0 && !isSearching ? (
+              <div className="space-y-3">
+                <p className="text-sm text-muted">Nenhum resultado neste filtro.</p>
+                <button className="secondary-button w-full sm:w-auto" onClick={openQuickVisitor} type="button">
+                  <UserPlus aria-hidden="true" size={18} />
+                  Cadastrar visitante rapidamente
+                </button>
+              </div>
             ) : (
               <div className="space-y-3">
-                {results.map((person) => (
+                {filteredResults.map((person) => (
                   <button
                     className="w-full rounded-card border border-line bg-paper p-3 text-left transition hover:border-forest hover:bg-forest/5 disabled:cursor-not-allowed disabled:opacity-75"
                     disabled={person.alreadyPresent || isMarking}
@@ -583,15 +648,36 @@ function AttendanceContent() {
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-base font-semibold text-ink">Presentes neste culto</h2>
               <StatusBadge tone={currentAttendances.length > 0 ? "success" : "neutral"}>
-                {currentAttendances.length}
+                {filteredCurrentAttendances.length}
               </StatusBadge>
             </div>
 
+            {currentAttendances.length > 0 ? (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {attendanceFilterOptions.map((filter) => (
+                  <button
+                    className={
+                      filter.value === attendanceListFilter
+                        ? "primary-button min-h-9 px-3 py-2 text-sm"
+                        : "secondary-button min-h-9 px-3 py-2 text-sm"
+                    }
+                    key={filter.value}
+                    onClick={() => setAttendanceListFilter(filter.value)}
+                    type="button"
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             {currentAttendances.length === 0 ? (
               <p className="text-sm text-muted">Nenhuma presença marcada para este culto.</p>
+            ) : filteredCurrentAttendances.length === 0 ? (
+              <p className="text-sm text-muted">Nenhuma presença neste filtro.</p>
             ) : (
               <div className="space-y-3">
-                {currentAttendances.map((attendance) => (
+                {filteredCurrentAttendances.map((attendance) => (
                   <div
                     className="border-b border-line pb-3 last:border-0 last:pb-0"
                     key={attendance.attendanceId}

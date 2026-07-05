@@ -1,10 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, CalendarClock, RefreshCw, UserCheck, UserRoundPlus } from "lucide-react";
+import {
+  AlertCircle,
+  CalendarClock,
+  RefreshCw,
+  Search,
+  UserCheck,
+  UserRoundPlus,
+  X
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
-import { Notice, PageHeader, StatusBadge } from "@/components/ui";
+import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { formatDateBR, SERVICE_LABELS, todayInputValue } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 import type { Attendance, Member, Service, Visitor } from "@/lib/types";
@@ -28,6 +36,14 @@ type Reports = {
   serviceCount: number;
 };
 
+type ReportFilters = {
+  memberSearch: string;
+  ministry: string;
+  neighborhood: string;
+  visitorSearch: string;
+  visitorLocation: string;
+};
+
 const emptyReports: Reports = {
   lastService: null,
   absentLast: [],
@@ -37,6 +53,51 @@ const emptyReports: Reports = {
   visitorsThreeOrMore: [],
   serviceCount: 0
 };
+
+const emptyReportFilters: ReportFilters = {
+  memberSearch: "",
+  ministry: "",
+  neighborhood: "",
+  visitorSearch: "",
+  visitorLocation: ""
+};
+
+function normalizeFilterValue(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function matchesMemberFilters(member: ReportMember, filters: ReportFilters) {
+  const memberSearch = normalizeFilterValue(filters.memberSearch.trim());
+  const ministry = normalizeFilterValue(filters.ministry.trim());
+  const neighborhood = normalizeFilterValue(filters.neighborhood.trim());
+  const memberText = normalizeFilterValue(
+    [member.full_name, member.phone, member.ministry, member.neighborhood]
+      .filter(Boolean)
+      .join(" ")
+  );
+
+  return (
+    (!memberSearch || memberText.includes(memberSearch)) &&
+    (!ministry || normalizeFilterValue(member.ministry ?? "").includes(ministry)) &&
+    (!neighborhood || normalizeFilterValue(member.neighborhood ?? "").includes(neighborhood))
+  );
+}
+
+function matchesVisitorFilters(visitor: VisitorFrequency, filters: ReportFilters) {
+  const visitorSearch = normalizeFilterValue(filters.visitorSearch.trim());
+  const visitorLocation = normalizeFilterValue(filters.visitorLocation.trim());
+  const visitorText = normalizeFilterValue(
+    [visitor.full_name, visitor.phone, visitor.location].filter(Boolean).join(" ")
+  );
+
+  return (
+    (!visitorSearch || visitorText.includes(visitorSearch)) &&
+    (!visitorLocation || normalizeFilterValue(visitor.location ?? "").includes(visitorLocation))
+  );
+}
 
 export default function ReportsPage() {
   return (
@@ -48,6 +109,7 @@ export default function ReportsPage() {
 
 function ReportsContent() {
   const [reports, setReports] = useState<Reports>(emptyReports);
+  const [filters, setFilters] = useState<ReportFilters>(emptyReportFilters);
   const [isLoading, setIsLoading] = useState(true);
 
   const lastServiceText = useMemo(() => {
@@ -56,6 +118,37 @@ function ReportsContent() {
       reports.lastService.service_date
     )}`;
   }, [reports.lastService]);
+
+  const filteredReports = useMemo(
+    () => ({
+      ...reports,
+      absentLast: reports.absentLast.filter((member) =>
+        matchesMemberFilters(member, filters)
+      ),
+      missedTwo: reports.missedTwo.filter((member) =>
+        matchesMemberFilters(member, filters)
+      ),
+      missedThree: reports.missedThree.filter((member) =>
+        matchesMemberFilters(member, filters)
+      ),
+      visitorsMoreThanOnce: reports.visitorsMoreThanOnce.filter((visitor) =>
+        matchesVisitorFilters(visitor, filters)
+      ),
+      visitorsThreeOrMore: reports.visitorsThreeOrMore.filter((visitor) =>
+        matchesVisitorFilters(visitor, filters)
+      )
+    }),
+    [filters, reports]
+  );
+
+  const hasActiveFilters = useMemo(
+    () => Object.values(filters).some((value) => value.trim().length > 0),
+    [filters]
+  );
+
+  function updateFilter(key: keyof ReportFilters, value: string) {
+    setFilters((current) => ({ ...current, [key]: value }));
+  }
 
   const loadReports = useCallback(async () => {
     setIsLoading(true);
@@ -207,49 +300,116 @@ function ReportsContent() {
         </div>
       </section>
 
+      <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Search aria-hidden="true" size={18} />
+            <h2 className="text-base font-semibold text-ink">Filtros do relatório</h2>
+          </div>
+          {hasActiveFilters ? (
+            <button
+              className="secondary-button min-h-9 px-3 py-2 text-sm"
+              onClick={() => setFilters(emptyReportFilters)}
+              type="button"
+            >
+              <X aria-hidden="true" size={16} />
+              Limpar filtros
+            </button>
+          ) : null}
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <Field label="Buscar membro">
+            <input
+              className="field-input"
+              onChange={(event) => updateFilter("memberSearch", event.target.value)}
+              placeholder="Nome ou telefone"
+              value={filters.memberSearch}
+            />
+          </Field>
+          <Field label="Ministério">
+            <input
+              className="field-input"
+              onChange={(event) => updateFilter("ministry", event.target.value)}
+              placeholder="Ex.: louvor"
+              value={filters.ministry}
+            />
+          </Field>
+          <Field label="Bairro">
+            <input
+              className="field-input"
+              onChange={(event) => updateFilter("neighborhood", event.target.value)}
+              placeholder="Bairro"
+              value={filters.neighborhood}
+            />
+          </Field>
+          <Field label="Buscar visitante">
+            <input
+              className="field-input"
+              onChange={(event) => updateFilter("visitorSearch", event.target.value)}
+              placeholder="Nome ou telefone"
+              value={filters.visitorSearch}
+            />
+          </Field>
+          <Field label="Cidade/bairro visitante">
+            <input
+              className="field-input"
+              onChange={(event) => updateFilter("visitorLocation", event.target.value)}
+              placeholder="Cidade ou bairro"
+              value={filters.visitorLocation}
+            />
+          </Field>
+        </div>
+      </section>
+
       {isLoading ? (
         <Notice title="Carregando relatórios..." />
       ) : (
         <div className="grid gap-5 xl:grid-cols-2">
           <ReportSection
-            count={reports.absentLast.length}
+            count={filteredReports.absentLast.length}
             emptyText="Nenhum membro ausente no último culto."
+            hasActiveFilters={hasActiveFilters}
             icon={CalendarClock}
-            items={reports.absentLast}
+            items={filteredReports.absentLast}
             title="Membros ausentes no último culto"
           />
           <ReportSection
-            count={reports.missedTwo.length}
+            count={filteredReports.missedTwo.length}
             emptyText={
               reports.serviceCount < 2
                 ? "Ainda não há 2 cultos registrados."
                 : "Nenhum membro com 2 faltas seguidas."
             }
+            hasActiveFilters={hasActiveFilters}
             icon={AlertCircle}
-            items={reports.missedTwo}
+            items={filteredReports.missedTwo}
             title="Membros com 2 faltas seguidas"
           />
           <ReportSection
-            count={reports.missedThree.length}
+            count={filteredReports.missedThree.length}
             emptyText={
               reports.serviceCount < 3
                 ? "Ainda não há 3 cultos registrados."
                 : "Nenhum membro com 3 faltas seguidas."
             }
+            hasActiveFilters={hasActiveFilters}
             icon={AlertCircle}
-            items={reports.missedThree}
+            items={filteredReports.missedThree}
             title="Membros com 3 faltas seguidas"
           />
           <VisitorSection
             emptyText="Nenhum visitante veio mais de uma vez."
+            hasActiveFilters={hasActiveFilters}
             icon={UserRoundPlus}
-            items={reports.visitorsMoreThanOnce}
+            items={filteredReports.visitorsMoreThanOnce}
             title="Visitantes que vieram mais de uma vez"
           />
           <VisitorSection
             emptyText="Nenhum visitante veio 3 vezes ou mais."
+            hasActiveFilters={hasActiveFilters}
             icon={UserCheck}
-            items={reports.visitorsThreeOrMore}
+            items={filteredReports.visitorsThreeOrMore}
             title="Visitantes que vieram 3 vezes ou mais"
           />
         </div>
@@ -261,16 +421,22 @@ function ReportsContent() {
 function ReportSection({
   count,
   emptyText,
+  hasActiveFilters,
   icon: Icon,
   items,
   title
 }: {
   count: number;
   emptyText: string;
+  hasActiveFilters?: boolean;
   icon: LucideIcon;
   items: ReportMember[];
   title: string;
 }) {
+  const emptyMessage = hasActiveFilters
+    ? "Nenhum membro encontrado com os filtros atuais."
+    : emptyText;
+
   return (
     <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -282,7 +448,7 @@ function ReportSection({
       </div>
 
       {items.length === 0 ? (
-        <p className="text-sm text-muted">{emptyText}</p>
+        <p className="text-sm text-muted">{emptyMessage}</p>
       ) : (
         <div className="space-y-3">
           {items.map((member) => (
@@ -301,15 +467,21 @@ function ReportSection({
 
 function VisitorSection({
   emptyText,
+  hasActiveFilters,
   icon: Icon,
   items,
   title
 }: {
   emptyText: string;
+  hasActiveFilters?: boolean;
   icon: LucideIcon;
   items: VisitorFrequency[];
   title: string;
 }) {
+  const emptyMessage = hasActiveFilters
+    ? "Nenhum visitante encontrado com os filtros atuais."
+    : emptyText;
+
   return (
     <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
       <div className="mb-4 flex items-center justify-between gap-3">
@@ -321,7 +493,7 @@ function VisitorSection({
       </div>
 
       {items.length === 0 ? (
-        <p className="text-sm text-muted">{emptyText}</p>
+        <p className="text-sm text-muted">{emptyMessage}</p>
       ) : (
         <div className="space-y-3">
           {items.map((visitor) => (
