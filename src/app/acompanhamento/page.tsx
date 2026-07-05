@@ -10,6 +10,7 @@ import {
   Save,
   Search,
   ShieldCheck,
+  Trash2,
   UsersRound
 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
@@ -230,6 +231,7 @@ function FollowUpContent() {
         lastService: services[0],
         followUp: followUpByMember.get(member.id) ?? null
       }))
+      .filter((item) => item.followUp?.status !== "removido")
       .sort(
         (a, b) =>
           b.absenceStreak - a.absenceStreak ||
@@ -330,6 +332,47 @@ function FollowUpContent() {
     [loadFollowUps, notesByMember, session?.user.id]
   );
 
+  const removeFromFollowUpList = useCallback(
+    async (item: FollowUpItem) => {
+      if (!session?.user.id) return;
+
+      const confirmed = window.confirm(
+        `Excluir ${item.full_name} da lista de acompanhamento deste culto? O cadastro do membro não será apagado.`
+      );
+
+      if (!confirmed) return;
+
+      setSavingId(`${item.id}:removido`);
+      setMessage("");
+
+      const { error } = await supabase.from("member_followups").upsert(
+        {
+          member_id: item.id,
+          last_service_id: item.lastService.id,
+          last_service_date: item.lastService.service_date,
+          absence_streak: item.absenceStreak,
+          status: "removido" as FollowUpStatus,
+          notes: notesByMember[item.id]?.trim() || item.followUp?.notes || null,
+          contacted_by: null,
+          contacted_at: null
+        },
+        { onConflict: "member_id,last_service_id" }
+      );
+
+      if (error) {
+        setNeedsSqlSetup(true);
+        setMessage("Não foi possível excluir da lista. Rode o SQL 09 no Supabase e tente de novo.");
+        setSavingId(null);
+        return;
+      }
+
+      setMessage("Membro removido da lista de acompanhamento.");
+      await loadFollowUps();
+      setSavingId(null);
+    },
+    [loadFollowUps, notesByMember, session?.user.id]
+  );
+
   return (
     <div>
       <PageHeader
@@ -367,7 +410,7 @@ function FollowUpContent() {
           <Notice
             tone="warning"
             title="Atualização do Supabase pendente"
-            text="Rode o arquivo supabase/07_member_followups.sql no SQL Editor para salvar observações e acompanhamentos."
+            text="Rode o arquivo supabase/09_followup_removal.sql no SQL Editor para permitir excluir membros da lista de acompanhamento."
           />
         </div>
       ) : null}
@@ -481,7 +524,7 @@ function FollowUpContent() {
                   />
                 </label>
 
-                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <div className="mt-4 grid gap-2 sm:grid-cols-4">
                   {whatsappUrl ? (
                     <a
                       className="primary-button"
@@ -527,6 +570,15 @@ function FollowUpContent() {
                       Concluir
                     </button>
                   )}
+                  <button
+                    className="danger-button"
+                    disabled={savingId === `${item.id}:removido`}
+                    onClick={() => removeFromFollowUpList(item)}
+                    type="button"
+                  >
+                    <Trash2 aria-hidden="true" size={17} />
+                    Excluir
+                  </button>
                 </div>
               </article>
             );

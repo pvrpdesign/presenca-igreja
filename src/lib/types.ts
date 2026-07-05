@@ -2,7 +2,7 @@ export type UserRole = "recepcao" | "lideranca";
 export type MemberStatus = "ativo" | "afastado" | "transferido";
 export type ServiceType = "quarta" | "sabado" | "especial";
 export type PersonType = "membro" | "visitante";
-export type FollowUpStatus = "pendente" | "acompanhado";
+export type FollowUpStatus = "pendente" | "acompanhado" | "removido";
 
 export type Profile = {
   id: string;

@@ -201,7 +201,7 @@ function DashboardContent() {
         .from("member_followups")
         .select("member_id, status")
         .eq("last_service_id", recentServices[0].id)
-        .eq("status", "acompanhado")
+        .in("status", ["acompanhado", "removido"])
         .in("member_id", missedTwoMemberIds);
 
       accompaniedCount = (followUpsData ?? []).length;

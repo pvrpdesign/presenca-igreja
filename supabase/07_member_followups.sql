@@ -4,7 +4,7 @@ create table if not exists public.member_followups (
   last_service_id uuid not null references public.services(id) on delete cascade,
   last_service_date date not null,
   absence_streak integer not null check (absence_streak >= 2),
-  status text not null default 'pendente' check (status in ('pendente', 'acompanhado')),
+  status text not null default 'pendente' check (status in ('pendente', 'acompanhado', 'removido')),
   notes text,
   contacted_by uuid references auth.users(id) on delete set null,
   contacted_at timestamptz,
@@ -15,6 +15,13 @@ create table if not exists public.member_followups (
 
 create index if not exists member_followups_member_idx on public.member_followups (member_id);
 create index if not exists member_followups_service_status_idx on public.member_followups (last_service_id, status);
+
+alter table public.member_followups
+drop constraint if exists member_followups_status_check;
+
+alter table public.member_followups
+add constraint member_followups_status_check
+check (status in ('pendente', 'acompanhado', 'removido'));
 
 create or replace function public.set_updated_at() returns trigger language plpgsql as '
 begin

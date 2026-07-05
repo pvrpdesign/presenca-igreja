@@ -95,7 +95,7 @@ create table if not exists public.member_followups (
   last_service_id uuid not null references public.services(id) on delete cascade,
   last_service_date date not null,
   absence_streak integer not null check (absence_streak >= 2),
-  status text not null default 'pendente' check (status in ('pendente', 'acompanhado')),
+  status text not null default 'pendente' check (status in ('pendente', 'acompanhado', 'removido')),
   notes text,
   contacted_by uuid references auth.users(id) on delete set null,
   contacted_at timestamptz,
