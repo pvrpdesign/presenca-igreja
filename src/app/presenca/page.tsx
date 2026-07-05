@@ -46,6 +46,18 @@ type CurrentAttendance = {
 
 type ResultFilter = "todos" | PersonType | "marcados" | "nao_marcados";
 type AttendanceListFilter = "todos" | PersonType;
+type ServiceTypeFilter = "todos" | ServiceType;
+
+type AttendanceHistoryRow = {
+  attendanceId: string;
+  personId: string;
+  personType: PersonType;
+  fullName: string;
+  detail: string | null;
+  serviceDate: string;
+  serviceType: ServiceType;
+  createdAt: string;
+};
 
 const emptyQuickVisitor: QuickVisitorForm = {
   full_name: "",
@@ -71,6 +83,24 @@ const attendanceFilterOptions: { value: AttendanceListFilter; label: string }[] 
   { value: "membro", label: "Membros" },
   { value: "visitante", label: "Visitantes" }
 ];
+
+const serviceTypeFilterOptions: { value: ServiceTypeFilter; label: string }[] = [
+  { value: "todos", label: "Todos" },
+  { value: "quarta", label: "Quarta" },
+  { value: "sabado", label: "Sábado" },
+  { value: "especial", label: "Especial" }
+];
+
+function dateInputDaysAgo(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 function normalizeSearchValue(value: string) {
   return value
@@ -122,6 +152,12 @@ function AttendanceContent() {
   const [removingAttendanceId, setRemovingAttendanceId] = useState<string | null>(null);
   const [showQuickForm, setShowQuickForm] = useState(false);
   const [quickVisitor, setQuickVisitor] = useState(emptyQuickVisitor);
+  const [historyStartDate, setHistoryStartDate] = useState(dateInputDaysAgo(30));
+  const [historyEndDate, setHistoryEndDate] = useState(todayInputValue());
+  const [historyServiceType, setHistoryServiceType] = useState<ServiceTypeFilter>("todos");
+  const [historyRows, setHistoryRows] = useState<AttendanceHistoryRow[]>([]);
+  const [historyMessage, setHistoryMessage] = useState("");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const currentServiceText = useMemo(
     () => `${SERVICE_LABELS[serviceType]} em ${formatDateBR(serviceDate)}`,
@@ -292,9 +328,131 @@ function AttendanceContent() {
     setIsSearching(false);
   }, [markedKeys, query, resultKey]);
 
+  const loadAttendanceHistory = useCallback(async () => {
+    if (!historyStartDate || !historyEndDate) {
+      setHistoryRows([]);
+      setHistoryMessage("Informe a data inicial e final para buscar.");
+      return;
+    }
+
+    if (historyStartDate > historyEndDate) {
+      setHistoryRows([]);
+      setHistoryMessage("A data inicial não pode ser maior que a data final.");
+      return;
+    }
+
+    setIsLoadingHistory(true);
+    setHistoryMessage("");
+
+    let attendanceQuery = supabase
+      .from("attendances")
+      .select("id, person_id, person_type, service_date, service_type, created_at")
+      .gte("service_date", historyStartDate)
+      .lte("service_date", historyEndDate)
+      .order("service_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    if (historyServiceType !== "todos") {
+      attendanceQuery = attendanceQuery.eq("service_type", historyServiceType);
+    }
+
+    const { data, error } = await attendanceQuery;
+
+    if (error) {
+      setHistoryRows([]);
+      setHistoryMessage("Não foi possível carregar o histórico de presença.");
+      setIsLoadingHistory(false);
+      return;
+    }
+
+    const attendanceRows = (data ?? []) as Pick<
+      Attendance,
+      "id" | "person_id" | "person_type" | "service_date" | "service_type" | "created_at"
+    >[];
+
+    const memberIds = attendanceRows
+      .filter((attendance) => attendance.person_type === "membro")
+      .map((attendance) => attendance.person_id);
+    const visitorIds = attendanceRows
+      .filter((attendance) => attendance.person_type === "visitante")
+      .map((attendance) => attendance.person_id);
+
+    const [membersResponse, visitorsResponse] = await Promise.all([
+      memberIds.length > 0
+        ? supabase
+            .from("members")
+            .select("id, full_name, phone, neighborhood, ministry")
+            .in("id", memberIds)
+        : Promise.resolve({ data: [] }),
+      visitorIds.length > 0
+        ? supabase
+            .from("visitors")
+            .select("id, full_name, phone, location")
+            .in("id", visitorIds)
+        : Promise.resolve({ data: [] })
+    ]);
+
+    const memberById = new Map(
+      ((membersResponse.data ?? []) as Pick<
+        Member,
+        "id" | "full_name" | "phone" | "neighborhood" | "ministry"
+      >[]).map((member) => [member.id, member])
+    );
+    const visitorById = new Map(
+      ((visitorsResponse.data ?? []) as Pick<
+        Visitor,
+        "id" | "full_name" | "phone" | "location"
+      >[]).map((visitor) => [visitor.id, visitor])
+    );
+
+    setHistoryRows(
+      attendanceRows.map((attendance) => {
+        if (attendance.person_type === "membro") {
+          const member = memberById.get(attendance.person_id);
+
+          return {
+            attendanceId: attendance.id,
+            personId: attendance.person_id,
+            personType: attendance.person_type,
+            fullName: member?.full_name ?? "Membro removido",
+            detail: member?.phone || member?.ministry || member?.neighborhood || null,
+            serviceDate: attendance.service_date,
+            serviceType: attendance.service_type,
+            createdAt: attendance.created_at
+          };
+        }
+
+        const visitor = visitorById.get(attendance.person_id);
+
+        return {
+          attendanceId: attendance.id,
+          personId: attendance.person_id,
+          personType: attendance.person_type,
+          fullName: visitor?.full_name ?? "Visitante removido",
+          detail: visitor?.phone || visitor?.location || null,
+          serviceDate: attendance.service_date,
+          serviceType: attendance.service_type,
+          createdAt: attendance.created_at
+        };
+      })
+    );
+
+    setHistoryMessage(
+      attendanceRows.length >= 500
+        ? "Mostrando os 500 registros mais recentes deste período."
+        : ""
+    );
+    setIsLoadingHistory(false);
+  }, [historyEndDate, historyServiceType, historyStartDate]);
+
   useEffect(() => {
     loadMarked();
   }, [loadMarked]);
+
+  useEffect(() => {
+    loadAttendanceHistory();
+  }, [loadAttendanceHistory]);
 
   useEffect(() => {
     const timeout = window.setTimeout(searchPeople, 220);
@@ -805,6 +963,116 @@ function AttendanceContent() {
           )}
         </aside>
       </div>
+
+      <section className="mt-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted">Consulta</p>
+            <h2 className="text-lg font-semibold text-ink">Histórico de presença por período</h2>
+          </div>
+          <StatusBadge tone={historyRows.length > 0 ? "success" : "neutral"}>
+            {historyRows.length} registros
+          </StatusBadge>
+        </div>
+
+        <form
+          className="mb-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            loadAttendanceHistory();
+          }}
+        >
+          <Field label="Data inicial">
+            <input
+              className="field-input"
+              onChange={(event) => setHistoryStartDate(event.target.value)}
+              type="date"
+              value={historyStartDate}
+            />
+          </Field>
+          <Field label="Data final">
+            <input
+              className="field-input"
+              onChange={(event) => setHistoryEndDate(event.target.value)}
+              type="date"
+              value={historyEndDate}
+            />
+          </Field>
+          <Field label="Tipo de culto">
+            <select
+              className="field-input"
+              onChange={(event) =>
+                setHistoryServiceType(event.target.value as ServiceTypeFilter)
+              }
+              value={historyServiceType}
+            >
+              {serviceTypeFilterOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <button
+            className="primary-button self-end"
+            disabled={isLoadingHistory}
+            type="submit"
+          >
+            <Search aria-hidden="true" size={18} />
+            {isLoadingHistory ? "Buscando..." : "Buscar"}
+          </button>
+        </form>
+
+        {historyMessage ? (
+          <p className="mb-4 rounded-card border border-gold/40 bg-gold/10 p-3 text-sm text-ink">
+            {historyMessage}
+          </p>
+        ) : null}
+
+        {isLoadingHistory ? (
+          <p className="text-sm text-muted">Carregando histórico...</p>
+        ) : historyRows.length === 0 ? (
+          <p className="text-sm text-muted">Nenhuma presença encontrada neste período.</p>
+        ) : (
+          <div className="max-h-[460px] overflow-y-auto rounded-card border border-line">
+            {historyRows.map((attendance) => (
+              <div
+                className="border-b border-line p-3 last:border-0 sm:p-4"
+                key={attendance.attendanceId}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <p className="font-medium text-ink">{attendance.fullName}</p>
+                      <StatusBadge
+                        tone={attendance.personType === "membro" ? "success" : "warning"}
+                      >
+                        {attendance.personType}
+                      </StatusBadge>
+                    </div>
+                    <p className="text-sm text-muted">
+                      {attendance.detail || "Sem contato"}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-left sm:text-right">
+                    <p className="font-medium text-ink">
+                      {SERVICE_LABELS[attendance.serviceType]}
+                    </p>
+                    <p className="text-sm text-muted">{formatDateBR(attendance.serviceDate)}</p>
+                    <p className="text-xs text-muted">
+                      Registrado às{" "}
+                      {new Date(attendance.createdAt).toLocaleTimeString("pt-BR", {
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }
