@@ -235,6 +235,12 @@ function DashboardContent() {
         tone: "bg-forest text-white hover:bg-forestDark"
       },
       {
+        href: "/cultos",
+        label: "Cultos",
+        icon: CalendarDays,
+        tone: "bg-white text-ink hover:border-forest hover:text-forest"
+      },
+      {
         href: "/membros",
         label: "Cadastrar membro",
         icon: UsersRound,
@@ -266,7 +272,7 @@ function DashboardContent() {
     <div>
       <PageHeader eyebrow={roleLabel} title="Dashboard" />
 
-      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         {actions.map((action) => {
           const Icon = action.icon;
           return (
@@ -312,7 +318,7 @@ function DashboardContent() {
               <option value="especial">Especial</option>
             </select>
           </label>
-          <Link className="primary-button sm:mb-0" href="/presenca">
+          <Link className="primary-button sm:mb-0" href={`/presenca?data=${serviceDate}&tipo=${serviceType}`}>
             <Search aria-hidden="true" size={18} />
             Check-in
           </Link>

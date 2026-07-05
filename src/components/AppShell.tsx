@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
   CalendarCheck,
+  CalendarDays,
   HeartHandshake,
   Home,
   LogOut,
@@ -18,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 const navigation = [
   { href: "/", label: "Início", icon: Home },
   { href: "/presenca", label: "Presença", icon: CalendarCheck },
+  { href: "/cultos", label: "Cultos", icon: CalendarDays },
   { href: "/membros", label: "Membros", icon: UsersRound },
   { href: "/visitantes", label: "Visitantes", icon: UserPlus },
   { href: "/acompanhamento", label: "Acomp.", icon: HeartHandshake },
@@ -69,7 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={clsx(
-                    "inline-flex items-center gap-2 rounded-card px-3 py-2 text-sm font-medium transition",
+                    "inline-flex shrink-0 items-center gap-2 rounded-card px-3 py-2 text-sm font-medium transition",
                     active
                       ? "bg-forest text-white"
                       : "text-muted hover:bg-paper hover:text-ink"
@@ -110,7 +112,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-label="Principal"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white md:hidden"
       >
-        <div className="grid grid-cols-6">
+        <div className="grid grid-cols-7">
           {navigation.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;

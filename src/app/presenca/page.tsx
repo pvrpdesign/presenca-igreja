@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CalendarCheck,
   CheckCircle2,
@@ -125,19 +126,33 @@ function sortByBestNameMatch(results: SearchResult[], term: string) {
   });
 }
 
+function isDateInputValue(value: string | null): value is string {
+  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
+}
+
+function isServiceType(value: string | null): value is ServiceType {
+  return value === "quarta" || value === "sabado" || value === "especial";
+}
+
 export default function AttendancePage() {
   return (
     <AuthGate allowedRoles={["recepcao", "lideranca"]}>
-      <AttendanceContent />
+      <Suspense fallback={null}>
+        <AttendanceContent />
+      </Suspense>
     </AuthGate>
   );
 }
 
 function AttendanceContent() {
   const { session } = useAuth();
-  const [serviceDate, setServiceDate] = useState(todayInputValue());
+  const searchParams = useSearchParams();
+  const dateParam = searchParams.get("data");
+  const typeParam = searchParams.get("tipo");
+  const initialServiceDate = isDateInputValue(dateParam) ? dateParam : todayInputValue();
+  const [serviceDate, setServiceDate] = useState(initialServiceDate);
   const [serviceType, setServiceType] = useState<ServiceType>(() =>
-    inferServiceType(todayInputValue())
+    isServiceType(typeParam) ? typeParam : inferServiceType(initialServiceDate)
   );
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -163,6 +178,14 @@ function AttendanceContent() {
     () => `${SERVICE_LABELS[serviceType]} em ${formatDateBR(serviceDate)}`,
     [serviceDate, serviceType]
   );
+
+  useEffect(() => {
+    if (!isDateInputValue(dateParam)) return;
+
+    setServiceDate(dateParam);
+    setServiceType(isServiceType(typeParam) ? typeParam : inferServiceType(dateParam));
+    setMessage("");
+  }, [dateParam, typeParam]);
 
   const filteredResults = useMemo(() => {
     return results.filter((person) => {
