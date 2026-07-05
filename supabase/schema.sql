@@ -221,6 +221,13 @@ to authenticated
 using (public.current_user_role() in ('recepcao', 'lideranca'))
 with check (public.current_user_role() in ('recepcao', 'lideranca'));
 
+drop policy if exists "Reception and leadership can delete visitors" on public.visitors;
+create policy "Reception and leadership can delete visitors"
+on public.visitors
+for delete
+to authenticated
+using (public.current_user_role() in ('recepcao', 'lideranca'));
+
 drop policy if exists "Reception and leadership can read services" on public.services;
 create policy "Reception and leadership can read services"
 on public.services
@@ -260,6 +267,13 @@ for insert
 to authenticated
 with check (public.current_user_role() in ('recepcao', 'lideranca'));
 
+drop policy if exists "Reception and leadership can delete attendances" on public.attendances;
+create policy "Reception and leadership can delete attendances"
+on public.attendances
+for delete
+to authenticated
+using (public.current_user_role() in ('recepcao', 'lideranca'));
+
 drop policy if exists "Leadership can read member followups" on public.member_followups;
 create policy "Leadership can read member followups"
 on public.member_followups
@@ -285,7 +299,7 @@ with check (public.current_user_role() = 'lideranca');
 grant usage on schema public to anon, authenticated;
 grant select on public.profiles to authenticated;
 grant select, insert, update on public.members to authenticated;
-grant select, insert, update on public.visitors to authenticated;
+grant select, insert, update, delete on public.visitors to authenticated;
 grant select, insert, update on public.services to authenticated;
-grant select, insert on public.attendances to authenticated;
+grant select, insert, delete on public.attendances to authenticated;
 grant select, insert, update on public.member_followups to authenticated;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit3, Save, Search, UserPlus, X } from "lucide-react";
+import { Edit3, Save, Search, Trash2, UserPlus, X } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
@@ -46,6 +46,7 @@ function VisitorsContent() {
   const [filters, setFilters] = useState(initialFilters);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingVisitorId, setDeletingVisitorId] = useState<string | null>(null);
 
   const loadVisitors = useCallback(async () => {
     const { data } = await supabase
@@ -139,6 +140,45 @@ function VisitorsContent() {
       editingVisitorId ? "Visitante atualizado com sucesso." : "Visitante cadastrado com sucesso."
     );
     resetForm();
+    await loadVisitors();
+  }
+
+  async function handleDelete(visitor: Visitor) {
+    const confirmed = window.confirm(
+      `Excluir o cadastro de ${visitor.full_name}? As presenças deste visitante também serão removidas.`
+    );
+
+    if (!confirmed) return;
+
+    setMessage("");
+    setDeletingVisitorId(visitor.id);
+
+    const { error: attendanceError } = await supabase
+      .from("attendances")
+      .delete()
+      .eq("person_type", "visitante")
+      .eq("person_id", visitor.id);
+
+    if (attendanceError) {
+      setMessage("Não foi possível excluir. Rode o SQL 08 no Supabase e tente novamente.");
+      setDeletingVisitorId(null);
+      return;
+    }
+
+    const { error } = await supabase.from("visitors").delete().eq("id", visitor.id);
+
+    setDeletingVisitorId(null);
+
+    if (error) {
+      setMessage("Não foi possível excluir o visitante.");
+      return;
+    }
+
+    if (editingVisitorId === visitor.id) {
+      resetForm();
+    }
+
+    setMessage("Visitante excluído com sucesso.");
     await loadVisitors();
   }
 
@@ -307,14 +347,25 @@ function VisitorsContent() {
                         {visitor.how_heard || "Origem não informada"}
                       </p>
                     </div>
-                    <button
-                      className="secondary-button min-h-9 shrink-0 px-3 py-2"
-                      onClick={() => startEdit(visitor)}
-                      type="button"
-                    >
-                      <Edit3 aria-hidden="true" size={15} />
-                      Editar
-                    </button>
+                    <div className="flex shrink-0 flex-col gap-2">
+                      <button
+                        className="secondary-button min-h-9 px-3 py-2"
+                        onClick={() => startEdit(visitor)}
+                        type="button"
+                      >
+                        <Edit3 aria-hidden="true" size={15} />
+                        Editar
+                      </button>
+                      <button
+                        className="danger-button min-h-9 px-3 py-2"
+                        disabled={deletingVisitorId === visitor.id}
+                        onClick={() => handleDelete(visitor)}
+                        type="button"
+                      >
+                        <Trash2 aria-hidden="true" size={15} />
+                        {deletingVisitorId === visitor.id ? "Excluindo..." : "Excluir"}
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))

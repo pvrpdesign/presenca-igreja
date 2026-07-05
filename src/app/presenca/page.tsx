@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   PlusCircle,
   Search,
+  Trash2,
   UserPlus,
   UsersRound
 } from "lucide-react";
@@ -14,7 +15,7 @@ import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDateBR, inferServiceType, serviceTitle, SERVICE_LABELS, todayInputValue } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
-import type { Member, PersonType, Service, ServiceType, Visitor } from "@/lib/types";
+import type { Attendance, Member, PersonType, Service, ServiceType, Visitor } from "@/lib/types";
 
 type SearchResult = {
   id: string;
@@ -32,6 +33,15 @@ type QuickVisitorForm = {
   how_heard: string;
   prayer_request: string;
   notes: string;
+};
+
+type CurrentAttendance = {
+  attendanceId: string;
+  personId: string;
+  personType: PersonType;
+  fullName: string;
+  detail: string | null;
+  createdAt: string;
 };
 
 const emptyQuickVisitor: QuickVisitorForm = {
@@ -85,9 +95,11 @@ function AttendanceContent() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
+  const [currentAttendances, setCurrentAttendances] = useState<CurrentAttendance[]>([]);
   const [message, setMessage] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
+  const [removingAttendanceId, setRemovingAttendanceId] = useState<string | null>(null);
   const [showQuickForm, setShowQuickForm] = useState(false);
   const [quickVisitor, setQuickVisitor] = useState(emptyQuickVisitor);
 
@@ -108,19 +120,89 @@ function AttendanceContent() {
 
     if (!service) {
       setMarkedKeys(new Set<string>());
+      setCurrentAttendances([]);
       return;
     }
 
     const { data } = await supabase
       .from("attendances")
-      .select("person_id, person_type")
-      .eq("service_id", service.id);
+      .select("id, person_id, person_type, created_at")
+      .eq("service_id", service.id)
+      .order("created_at", { ascending: false });
+
+    const attendanceRows = (data ?? []) as Pick<
+      Attendance,
+      "id" | "person_id" | "person_type" | "created_at"
+    >[];
 
     const next = new Set<string>();
-    (data ?? []).forEach((attendance) => {
+    attendanceRows.forEach((attendance) => {
       next.add(resultKey(attendance.person_type, attendance.person_id));
     });
     setMarkedKeys(next);
+
+    const memberIds = attendanceRows
+      .filter((attendance) => attendance.person_type === "membro")
+      .map((attendance) => attendance.person_id);
+    const visitorIds = attendanceRows
+      .filter((attendance) => attendance.person_type === "visitante")
+      .map((attendance) => attendance.person_id);
+
+    const [membersResponse, visitorsResponse] = await Promise.all([
+      memberIds.length > 0
+        ? supabase
+            .from("members")
+            .select("id, full_name, phone, neighborhood, ministry")
+            .in("id", memberIds)
+        : Promise.resolve({ data: [] }),
+      visitorIds.length > 0
+        ? supabase
+            .from("visitors")
+            .select("id, full_name, phone, location")
+            .in("id", visitorIds)
+        : Promise.resolve({ data: [] })
+    ]);
+
+    const memberById = new Map(
+      ((membersResponse.data ?? []) as Pick<
+        Member,
+        "id" | "full_name" | "phone" | "neighborhood" | "ministry"
+      >[]).map((member) => [member.id, member])
+    );
+    const visitorById = new Map(
+      ((visitorsResponse.data ?? []) as Pick<
+        Visitor,
+        "id" | "full_name" | "phone" | "location"
+      >[]).map((visitor) => [visitor.id, visitor])
+    );
+
+    setCurrentAttendances(
+      attendanceRows.map((attendance) => {
+        if (attendance.person_type === "membro") {
+          const member = memberById.get(attendance.person_id);
+
+          return {
+            attendanceId: attendance.id,
+            personId: attendance.person_id,
+            personType: attendance.person_type,
+            fullName: member?.full_name ?? "Membro removido",
+            detail: member?.phone || member?.ministry || member?.neighborhood || null,
+            createdAt: attendance.created_at
+          };
+        }
+
+        const visitor = visitorById.get(attendance.person_id);
+
+        return {
+          attendanceId: attendance.id,
+          personId: attendance.person_id,
+          personType: attendance.person_type,
+          fullName: visitor?.full_name ?? "Visitante removido",
+          detail: visitor?.phone || visitor?.location || null,
+          createdAt: attendance.created_at
+        };
+      })
+    );
   }, [resultKey, serviceDate, serviceType]);
 
   const searchPeople = useCallback(async () => {
@@ -260,6 +342,39 @@ function AttendanceContent() {
     setIsMarking(false);
   }
 
+  async function handleRemoveAttendance(attendance: CurrentAttendance) {
+    const confirmed = window.confirm(
+      `Remover a presença de ${attendance.fullName} neste culto?`
+    );
+
+    if (!confirmed) return;
+
+    setRemovingAttendanceId(attendance.attendanceId);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("attendances")
+      .delete()
+      .eq("id", attendance.attendanceId);
+
+    setRemovingAttendanceId(null);
+
+    if (error) {
+      setMessage("Não foi possível remover a presença. Rode o SQL 08 no Supabase e tente novamente.");
+      return;
+    }
+
+    setMessage(`Presença de ${attendance.fullName} removida.`);
+    await loadMarked();
+    setResults((current) =>
+      current.map((result) =>
+        result.id === attendance.personId && result.kind === attendance.personType
+          ? { ...result, alreadyPresent: false }
+          : result
+      )
+    );
+  }
+
   function openQuickVisitor() {
     setQuickVisitor({
       ...emptyQuickVisitor,
@@ -371,7 +486,13 @@ function AttendanceContent() {
           {message ? (
             <Notice
               title={message}
-              tone={message.includes("marcado") || message.includes("já estava") ? "success" : "warning"}
+              tone={
+                message.includes("marcado") ||
+                message.includes("já estava") ||
+                message.includes("removida")
+                  ? "success"
+                  : "warning"
+              }
             />
           ) : null}
 
@@ -456,6 +577,53 @@ function AttendanceContent() {
             <p className="mt-2 text-sm leading-6 text-muted">
               Pessoas já marcadas neste culto ficam bloqueadas para evitar duplicidade.
             </p>
+          </section>
+
+          <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-base font-semibold text-ink">Presentes neste culto</h2>
+              <StatusBadge tone={currentAttendances.length > 0 ? "success" : "neutral"}>
+                {currentAttendances.length}
+              </StatusBadge>
+            </div>
+
+            {currentAttendances.length === 0 ? (
+              <p className="text-sm text-muted">Nenhuma presença marcada para este culto.</p>
+            ) : (
+              <div className="space-y-3">
+                {currentAttendances.map((attendance) => (
+                  <div
+                    className="border-b border-line pb-3 last:border-0 last:pb-0"
+                    key={attendance.attendanceId}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <p className="font-medium text-ink">{attendance.fullName}</p>
+                          <StatusBadge
+                            tone={attendance.personType === "membro" ? "success" : "warning"}
+                          >
+                            {attendance.personType}
+                          </StatusBadge>
+                        </div>
+                        <p className="text-sm text-muted">
+                          {attendance.detail || "Sem contato"}
+                        </p>
+                      </div>
+                      <button
+                        className="danger-button min-h-9 shrink-0 px-3 py-2"
+                        disabled={removingAttendanceId === attendance.attendanceId}
+                        onClick={() => handleRemoveAttendance(attendance)}
+                        type="button"
+                      >
+                        <Trash2 aria-hidden="true" size={15} />
+                        {removingAttendanceId === attendance.attendanceId ? "Removendo..." : "Remover"}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {showQuickForm ? (
