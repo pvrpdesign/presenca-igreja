@@ -1,7 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertCircle, Edit3, FileSpreadsheet, Save, Search, Upload, UsersRound, X } from "lucide-react";
+import {
+  AlertCircle,
+  Edit3,
+  FileSpreadsheet,
+  Save,
+  Search,
+  Trash2,
+  Upload,
+  UsersRound,
+  X
+} from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
@@ -45,13 +55,14 @@ export default function MembersPage() {
 }
 
 function MembersContent() {
-  const { session } = useAuth();
+  const { profile, session } = useAuth();
   const [form, setForm] = useState(initialForm);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [filters, setFilters] = useState(initialFilters);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
   const [importRows, setImportRows] = useState<MemberImportRow[]>([]);
   const [importFileName, setImportFileName] = useState("");
   const [importMessage, setImportMessage] = useState("");
@@ -102,6 +113,7 @@ function MembersContent() {
   );
 
   const importProblemCount = importRows.length - validImportRows.length;
+  const canDeleteMembers = profile?.role === "lideranca";
 
   function resetForm() {
     setForm(initialForm);
@@ -156,6 +168,33 @@ function MembersContent() {
 
     setMessage(editingMemberId ? "Membro atualizado com sucesso." : "Membro cadastrado com sucesso.");
     resetForm();
+    await loadMembers();
+  }
+
+  async function handleDelete(member: Member) {
+    const confirmed = window.confirm(
+      `Excluir o cadastro de ${member.full_name}? As presenças antigas continuarão no histórico como membro removido.`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingMemberId(member.id);
+    setMessage("");
+
+    const { error } = await supabase.from("members").delete().eq("id", member.id);
+
+    setDeletingMemberId(null);
+
+    if (error) {
+      setMessage("Não foi possível excluir o membro. Rode o SQL 11 no Supabase e tente novamente.");
+      return;
+    }
+
+    if (editingMemberId === member.id) {
+      resetForm();
+    }
+
+    setMessage("Membro excluído com sucesso.");
     await loadMembers();
   }
 
@@ -550,6 +589,17 @@ function MembersContent() {
                         <Edit3 aria-hidden="true" size={15} />
                         Editar
                       </button>
+                      {canDeleteMembers ? (
+                        <button
+                          className="danger-button min-h-9 px-3 py-2"
+                          disabled={deletingMemberId === member.id}
+                          onClick={() => handleDelete(member)}
+                          type="button"
+                        >
+                          <Trash2 aria-hidden="true" size={15} />
+                          {deletingMemberId === member.id ? "Excluindo..." : "Excluir"}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </div>
