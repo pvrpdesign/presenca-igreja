@@ -9,6 +9,9 @@ dist
 *.log
 *.err
 presenca-igreja-github-*
+Igreja App/
+igreja/
+igrejaRecepcao/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
