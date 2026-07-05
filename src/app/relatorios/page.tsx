@@ -15,7 +15,7 @@ import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { formatDateBR, SERVICE_LABELS, todayInputValue } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
-import type { Attendance, Member, Service, Visitor } from "@/lib/types";
+import type { Attendance, Member, Service, ServiceType, Visitor } from "@/lib/types";
 
 type ReportMember = Pick<
   Member,
@@ -44,6 +44,8 @@ type ReportFilters = {
   visitorLocation: string;
 };
 
+type ServiceTypeFilter = "todos" | ServiceType;
+
 const emptyReports: Reports = {
   lastService: null,
   absentLast: [],
@@ -61,6 +63,24 @@ const emptyReportFilters: ReportFilters = {
   visitorSearch: "",
   visitorLocation: ""
 };
+
+const serviceTypeFilterOptions: { value: ServiceTypeFilter; label: string }[] = [
+  { value: "todos", label: "Todos" },
+  { value: "quarta", label: "Quarta" },
+  { value: "sabado", label: "Sábado" },
+  { value: "especial", label: "Especial" }
+];
+
+function dateInputDaysAgo(days: number) {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 function normalizeFilterValue(value: string) {
   return value
@@ -110,6 +130,10 @@ export default function ReportsPage() {
 function ReportsContent() {
   const [reports, setReports] = useState<Reports>(emptyReports);
   const [filters, setFilters] = useState<ReportFilters>(emptyReportFilters);
+  const [reportStartDate, setReportStartDate] = useState(dateInputDaysAgo(30));
+  const [reportEndDate, setReportEndDate] = useState(todayInputValue());
+  const [reportServiceType, setReportServiceType] = useState<ServiceTypeFilter>("todos");
+  const [periodMessage, setPeriodMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
   const lastServiceText = useMemo(() => {
@@ -146,6 +170,11 @@ function ReportsContent() {
     [filters]
   );
 
+  const periodText = useMemo(() => {
+    if (!reportStartDate || !reportEndDate) return "Período não informado";
+    return `${formatDateBR(reportStartDate)} até ${formatDateBR(reportEndDate)}`;
+  }, [reportEndDate, reportStartDate]);
+
   function updateFilter(key: keyof ReportFilters, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
   }
@@ -153,13 +182,43 @@ function ReportsContent() {
   const loadReports = useCallback(async () => {
     setIsLoading(true);
 
-    const { data: servicesData } = await supabase
+    if (!reportStartDate || !reportEndDate) {
+      setReports(emptyReports);
+      setPeriodMessage("Informe a data inicial e final para carregar os relatórios.");
+      setIsLoading(false);
+      return;
+    }
+
+    if (reportStartDate > reportEndDate) {
+      setReports(emptyReports);
+      setPeriodMessage("A data inicial não pode ser maior que a data final.");
+      setIsLoading(false);
+      return;
+    }
+
+    setPeriodMessage("");
+
+    let servicesQuery = supabase
       .from("services")
       .select("id, service_date, service_type")
-      .lte("service_date", todayInputValue())
+      .gte("service_date", reportStartDate)
+      .lte("service_date", reportEndDate);
+
+    if (reportServiceType !== "todos") {
+      servicesQuery = servicesQuery.eq("service_type", reportServiceType);
+    }
+
+    const { data: servicesData, error: servicesError } = await servicesQuery
       .order("service_date", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(12);
+      .limit(60);
+
+    if (servicesError) {
+      setReports(emptyReports);
+      setPeriodMessage("Não foi possível carregar os cultos deste período.");
+      setIsLoading(false);
+      return;
+    }
 
     const services = (servicesData ?? []) as Pick<
       Service,
@@ -226,11 +285,18 @@ function ReportsContent() {
           )
         : [];
 
-    const { data: visitorAttendanceData } = await supabase
+    let visitorAttendanceQuery = supabase
       .from("attendances")
       .select("person_id")
       .eq("person_type", "visitante")
-      .limit(5000);
+      .gte("service_date", reportStartDate)
+      .lte("service_date", reportEndDate);
+
+    if (reportServiceType !== "todos") {
+      visitorAttendanceQuery = visitorAttendanceQuery.eq("service_type", reportServiceType);
+    }
+
+    const { data: visitorAttendanceData } = await visitorAttendanceQuery.limit(5000);
 
     const visitorCounts = new Map<string, number>();
     (visitorAttendanceData ?? []).forEach((attendance) => {
@@ -269,7 +335,7 @@ function ReportsContent() {
       serviceCount: services.length
     });
     setIsLoading(false);
-  }, []);
+  }, [reportEndDate, reportServiceType, reportStartDate]);
 
   useEffect(() => {
     loadReports();
@@ -293,12 +359,73 @@ function ReportsContent() {
           <div>
             <p className="text-sm font-medium text-muted">Último culto</p>
             <h2 className="mt-1 text-xl font-semibold text-ink">{lastServiceText}</h2>
+            <p className="mt-1 text-sm text-muted">{periodText}</p>
           </div>
           <StatusBadge tone={reports.serviceCount > 0 ? "success" : "warning"}>
             {reports.serviceCount} cultos na base
           </StatusBadge>
         </div>
       </section>
+
+      <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted">Período</p>
+            <h2 className="text-base font-semibold text-ink">Período do relatório</h2>
+          </div>
+          <StatusBadge tone={reportServiceType === "todos" ? "neutral" : "success"}>
+            {reportServiceType === "todos" ? "Todos os cultos" : SERVICE_LABELS[reportServiceType]}
+          </StatusBadge>
+        </div>
+
+        <form
+          className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]"
+          onSubmit={(event) => {
+            event.preventDefault();
+            loadReports();
+          }}
+        >
+          <Field label="Data inicial">
+            <input
+              className="field-input"
+              onChange={(event) => setReportStartDate(event.target.value)}
+              type="date"
+              value={reportStartDate}
+            />
+          </Field>
+          <Field label="Data final">
+            <input
+              className="field-input"
+              onChange={(event) => setReportEndDate(event.target.value)}
+              type="date"
+              value={reportEndDate}
+            />
+          </Field>
+          <Field label="Tipo de culto">
+            <select
+              className="field-input"
+              onChange={(event) =>
+                setReportServiceType(event.target.value as ServiceTypeFilter)
+              }
+              value={reportServiceType}
+            >
+              {serviceTypeFilterOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <button className="primary-button self-end" disabled={isLoading} type="submit">
+            <RefreshCw aria-hidden="true" size={17} />
+            {isLoading ? "Carregando..." : "Aplicar"}
+          </button>
+        </form>
+      </section>
+
+      {periodMessage ? (
+        <Notice title={periodMessage} tone="warning" />
+      ) : null}
 
       <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
