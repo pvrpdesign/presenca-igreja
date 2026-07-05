@@ -1,23 +1,3 @@
-alter table public.profiles enable row level security;
-alter table public.members enable row level security;
-alter table public.visitors enable row level security;
-alter table public.services enable row level security;
-alter table public.attendances enable row level security;
-
-drop policy if exists "Users can read own profile" on public.profiles;
-create policy "Users can read own profile"
-on public.profiles
-for select
-to authenticated
-using (id = auth.uid() or public.current_user_role() = 'lideranca');
-
-drop policy if exists "Reception and leadership can read members" on public.members;
-create policy "Reception and leadership can read members"
-on public.members
-for select
-to authenticated
-using (public.current_user_role() in ('recepcao', 'lideranca'));
-
 drop policy if exists "Reception can insert members" on public.members;
 drop policy if exists "Reception and leadership can insert members" on public.members;
 create policy "Reception and leadership can insert members"
@@ -34,13 +14,6 @@ for update
 to authenticated
 using (public.current_user_role() in ('recepcao', 'lideranca'))
 with check (public.current_user_role() in ('recepcao', 'lideranca'));
-
-drop policy if exists "Reception and leadership can read visitors" on public.visitors;
-create policy "Reception and leadership can read visitors"
-on public.visitors
-for select
-to authenticated
-using (public.current_user_role() in ('recepcao', 'lideranca'));
 
 drop policy if exists "Reception can insert visitors" on public.visitors;
 drop policy if exists "Reception and leadership can insert visitors" on public.visitors;
@@ -59,13 +32,6 @@ to authenticated
 using (public.current_user_role() in ('recepcao', 'lideranca'))
 with check (public.current_user_role() in ('recepcao', 'lideranca'));
 
-drop policy if exists "Reception and leadership can read services" on public.services;
-create policy "Reception and leadership can read services"
-on public.services
-for select
-to authenticated
-using (public.current_user_role() in ('recepcao', 'lideranca'));
-
 drop policy if exists "Reception can insert services" on public.services;
 drop policy if exists "Reception and leadership can insert services" on public.services;
 create policy "Reception and leadership can insert services"
@@ -83,13 +49,6 @@ to authenticated
 using (public.current_user_role() in ('recepcao', 'lideranca'))
 with check (public.current_user_role() in ('recepcao', 'lideranca'));
 
-drop policy if exists "Reception and leadership can read attendances" on public.attendances;
-create policy "Reception and leadership can read attendances"
-on public.attendances
-for select
-to authenticated
-using (public.current_user_role() in ('recepcao', 'lideranca'));
-
 drop policy if exists "Reception can insert attendances" on public.attendances;
 drop policy if exists "Reception and leadership can insert attendances" on public.attendances;
 create policy "Reception and leadership can insert attendances"
@@ -97,10 +56,3 @@ on public.attendances
 for insert
 to authenticated
 with check (public.current_user_role() in ('recepcao', 'lideranca'));
-
-grant usage on schema public to anon, authenticated;
-grant select on public.profiles to authenticated;
-grant select, insert, update on public.members to authenticated;
-grant select, insert, update on public.visitors to authenticated;
-grant select, insert, update on public.services to authenticated;
-grant select, insert on public.attendances to authenticated;

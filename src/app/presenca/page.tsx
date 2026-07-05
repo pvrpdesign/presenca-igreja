@@ -70,7 +70,7 @@ function sortByBestNameMatch(results: SearchResult[], term: string) {
 
 export default function AttendancePage() {
   return (
-    <AuthGate allowedRoles={["recepcao"]}>
+    <AuthGate allowedRoles={["recepcao", "lideranca"]}>
       <AttendanceContent />
     </AuthGate>
   );

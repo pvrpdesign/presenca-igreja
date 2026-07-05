@@ -19,7 +19,7 @@ const initialForm = {
 
 export default function VisitorsPage() {
   return (
-    <AuthGate allowedRoles={["recepcao"]}>
+    <AuthGate allowedRoles={["recepcao", "lideranca"]}>
       <VisitorsContent />
     </AuthGate>
   );

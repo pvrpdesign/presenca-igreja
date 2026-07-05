@@ -13,7 +13,7 @@ App web responsivo para a recepção registrar presença de membros e visitantes
 
 - Login por e-mail e senha.
 - Perfil `recepcao`: cadastra membros, cadastra visitantes e registra presença.
-- Perfil `lideranca`: acessa relatórios.
+- Perfil `lideranca`: acessa todo o sistema, incluindo cadastros, check-in e relatórios.
 - Dashboard com total de presentes, membros presentes e visitantes presentes no culto selecionado.
 - Check-in por data e tipo de culto: quarta, sábado ou especial.
 - Busca unificada por membros ativos e visitantes.
@@ -113,6 +113,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/02_functions_triggers.sql`
 - `supabase/03_security_policies.sql`
 - `supabase/04_seed_test_members.sql` para cadastrar 10 membros de teste
+- `supabase/06_lideranca_full_access.sql` para atualizar projetos antigos e liberar liderança em todo o sistema
 
 Eles criam:
 
