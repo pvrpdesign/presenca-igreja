@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   Edit3,
+  FileDown,
   FileSpreadsheet,
   Save,
   Search,
@@ -21,6 +22,7 @@ import {
   type MemberImportRow
 } from "@/lib/memberImport";
 import { findPotentialDuplicate } from "@/lib/duplicates";
+import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
 import { supabase } from "@/lib/supabase";
 import type { Member, MemberStatus } from "@/lib/types";
 
@@ -276,9 +278,40 @@ function MembersContent() {
     await loadMembers();
   }
 
+  async function handleDownloadMembersExcel() {
+    await downloadExcelWorkbook(datedFileName("membros", "xlsx"), [
+      {
+        name: "Membros",
+        rows: filteredMembers.map((member) => ({
+          Nome: member.full_name,
+          WhatsApp: member.phone ?? "",
+          Bairro: member.neighborhood ?? "",
+          Ministério: member.ministry ?? "",
+          Status: member.status,
+          Observações: member.notes ?? "",
+          "Criado em": new Date(member.created_at).toLocaleDateString("pt-BR")
+        }))
+      }
+    ]);
+  }
+
   return (
     <div>
-      <PageHeader eyebrow="Cadastro" title="Membros" />
+      <PageHeader
+        action={
+          <button
+            className="secondary-button"
+            disabled={filteredMembers.length === 0}
+            onClick={handleDownloadMembersExcel}
+            type="button"
+          >
+            <FileDown aria-hidden="true" size={17} />
+            Baixar Excel
+          </button>
+        }
+        eyebrow="Cadastro"
+        title="Membros"
+      />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-5">

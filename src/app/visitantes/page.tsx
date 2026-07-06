@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit3, Save, Search, Trash2, UserPlus, X } from "lucide-react";
+import { Edit3, FileDown, Save, Search, Trash2, UserPlus, X } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { findPotentialDuplicate } from "@/lib/duplicates";
+import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
 import { supabase } from "@/lib/supabase";
 import type { Visitor } from "@/lib/types";
 
@@ -201,9 +202,40 @@ function VisitorsContent() {
     await loadVisitors();
   }
 
+  async function handleDownloadVisitorsExcel() {
+    await downloadExcelWorkbook(datedFileName("visitantes", "xlsx"), [
+      {
+        name: "Visitantes",
+        rows: filteredVisitors.map((visitor) => ({
+          Nome: visitor.full_name,
+          WhatsApp: visitor.phone ?? "",
+          "Cidade/bairro": visitor.location ?? "",
+          "Como conheceu": visitor.how_heard ?? "",
+          "Pedido de oração": visitor.prayer_request ?? "",
+          Observações: visitor.notes ?? "",
+          "Criado em": new Date(visitor.created_at).toLocaleDateString("pt-BR")
+        }))
+      }
+    ]);
+  }
+
   return (
     <div>
-      <PageHeader eyebrow="Cadastro" title="Visitantes" />
+      <PageHeader
+        action={
+          <button
+            className="secondary-button"
+            disabled={filteredVisitors.length === 0}
+            onClick={handleDownloadVisitorsExcel}
+            type="button"
+          >
+            <FileDown aria-hidden="true" size={17} />
+            Baixar Excel
+          </button>
+        }
+        eyebrow="Cadastro"
+        title="Visitantes"
+      />
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">

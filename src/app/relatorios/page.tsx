@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CalendarClock,
+  FileDown,
   RefreshCw,
   Search,
   UserCheck,
@@ -14,6 +15,7 @@ import type { LucideIcon } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { formatDateBR, SERVICE_LABELS, todayInputValue } from "@/lib/date";
+import { datedFileName, downloadSimplePdf } from "@/lib/exports";
 import { supabase } from "@/lib/supabase";
 import type { Attendance, Member, Service, ServiceType, Visitor } from "@/lib/types";
 
@@ -177,6 +179,46 @@ function ReportsContent() {
 
   function updateFilter(key: keyof ReportFilters, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
+  }
+
+  function handleDownloadPdf() {
+    const memberLine = (member: ReportMember) =>
+      `${member.full_name} | ${member.phone || "Sem telefone"} | ${
+        member.ministry || "Sem ministério"
+      } | ${member.neighborhood || "Sem bairro"}`;
+
+    const visitorLine = (visitor: VisitorFrequency) =>
+      `${visitor.full_name} | ${visitor.phone || "Sem telefone"} | ${
+        visitor.location || "Sem cidade/bairro"
+      } | ${visitor.total} presenças`;
+
+    downloadSimplePdf({
+      fileName: datedFileName("relatorios-presenca", "pdf"),
+      title: "Relatórios de presença",
+      subtitle: `${periodText} | Último culto: ${lastServiceText}`,
+      sections: [
+        {
+          title: `Membros ausentes no último culto (${filteredReports.absentLast.length})`,
+          lines: filteredReports.absentLast.map(memberLine)
+        },
+        {
+          title: `Membros com 2 faltas seguidas (${filteredReports.missedTwo.length})`,
+          lines: filteredReports.missedTwo.map(memberLine)
+        },
+        {
+          title: `Membros com 3 faltas seguidas (${filteredReports.missedThree.length})`,
+          lines: filteredReports.missedThree.map(memberLine)
+        },
+        {
+          title: `Visitantes que vieram mais de uma vez (${filteredReports.visitorsMoreThanOnce.length})`,
+          lines: filteredReports.visitorsMoreThanOnce.map(visitorLine)
+        },
+        {
+          title: `Visitantes que vieram 3 vezes ou mais (${filteredReports.visitorsThreeOrMore.length})`,
+          lines: filteredReports.visitorsThreeOrMore.map(visitorLine)
+        }
+      ]
+    });
   }
 
   const loadReports = useCallback(async () => {
@@ -345,10 +387,21 @@ function ReportsContent() {
     <div>
       <PageHeader
         action={
-          <button className="secondary-button" onClick={loadReports} type="button">
-            <RefreshCw aria-hidden="true" size={17} />
-            Atualizar
-          </button>
+          <>
+            <button
+              className="secondary-button"
+              disabled={isLoading}
+              onClick={handleDownloadPdf}
+              type="button"
+            >
+              <FileDown aria-hidden="true" size={17} />
+              Baixar PDF
+            </button>
+            <button className="secondary-button" onClick={loadReports} type="button">
+              <RefreshCw aria-hidden="true" size={17} />
+              Atualizar
+            </button>
+          </>
         }
         eyebrow="Liderança"
         title="Relatórios"
