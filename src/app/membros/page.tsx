@@ -66,6 +66,8 @@ function MembersContent() {
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
+  const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [importRows, setImportRows] = useState<MemberImportRow[]>([]);
   const [importFileName, setImportFileName] = useState("");
   const [importMessage, setImportMessage] = useState("");
@@ -117,6 +119,17 @@ function MembersContent() {
 
   const importProblemCount = importRows.length - validImportRows.length;
   const canDeleteMembers = profile?.role === "lideranca";
+  const selectedMembers = useMemo(
+    () => members.filter((member) => selectedMemberIds.has(member.id)),
+    [members, selectedMemberIds]
+  );
+  const selectedFilteredMemberIds = useMemo(
+    () => filteredMembers.map((member) => member.id),
+    [filteredMembers]
+  );
+  const allFilteredMembersSelected =
+    selectedFilteredMemberIds.length > 0 &&
+    selectedFilteredMemberIds.every((id) => selectedMemberIds.has(id));
 
   function resetForm() {
     setForm(initialForm);
@@ -135,6 +148,34 @@ function MembersContent() {
     });
     setMessage("Editando membro selecionado.");
     document.getElementById("member-form")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function toggleMemberSelection(memberId: string) {
+    setSelectedMemberIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(memberId)) {
+        next.delete(memberId);
+      } else {
+        next.add(memberId);
+      }
+
+      return next;
+    });
+  }
+
+  function toggleFilteredMembersSelection() {
+    setSelectedMemberIds((current) => {
+      const next = new Set(current);
+
+      if (allFilteredMembersSelected) {
+        selectedFilteredMemberIds.forEach((id) => next.delete(id));
+      } else {
+        selectedFilteredMemberIds.forEach((id) => next.add(id));
+      }
+
+      return next;
+    });
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -207,6 +248,37 @@ function MembersContent() {
     }
 
     setMessage("Membro excluído com sucesso.");
+    await loadMembers();
+  }
+
+  async function handleBulkDelete() {
+    if (selectedMembers.length === 0 || isBulkDeleting) return;
+
+    const confirmed = window.confirm(
+      `Excluir ${selectedMembers.length} membros selecionados? As presenças antigas continuarão no histórico como membros removidos.`
+    );
+
+    if (!confirmed) return;
+
+    setIsBulkDeleting(true);
+    setMessage("");
+
+    const selectedIds = selectedMembers.map((member) => member.id);
+    const { error } = await supabase.from("members").delete().in("id", selectedIds);
+
+    setIsBulkDeleting(false);
+
+    if (error) {
+      setMessage("Não foi possível excluir os membros. Rode o SQL 11 no Supabase e tente novamente.");
+      return;
+    }
+
+    if (editingMemberId && selectedIds.includes(editingMemberId)) {
+      resetForm();
+    }
+
+    setSelectedMemberIds(new Set());
+    setMessage(`${selectedMembers.length} membros excluídos com sucesso.`);
     await loadMembers();
   }
 
@@ -544,6 +616,47 @@ function MembersContent() {
             <StatusBadge tone="neutral">{filteredMembers.length}</StatusBadge>
           </div>
 
+          {canDeleteMembers && filteredMembers.length > 0 ? (
+            <div className="mb-4 rounded-card border border-line bg-paper p-3">
+              <label className="flex items-center gap-3 text-sm font-medium text-ink">
+                <input
+                  checked={allFilteredMembersSelected}
+                  className="h-5 w-5 accent-forest"
+                  onChange={toggleFilteredMembersSelection}
+                  type="checkbox"
+                />
+                Selecionar todos filtrados
+              </label>
+
+              {selectedMembers.length > 0 ? (
+                <div className="mt-3 grid gap-2">
+                  <p className="text-sm text-muted">
+                    {selectedMembers.length} membros selecionados
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                    <button
+                      className="danger-button min-h-10 px-3 py-2"
+                      disabled={isBulkDeleting}
+                      onClick={handleBulkDelete}
+                      type="button"
+                    >
+                      <Trash2 aria-hidden="true" size={16} />
+                      {isBulkDeleting ? "Excluindo..." : "Excluir selecionados"}
+                    </button>
+                    <button
+                      className="secondary-button min-h-10 px-3 py-2"
+                      disabled={isBulkDeleting}
+                      onClick={() => setSelectedMemberIds(new Set())}
+                      type="button"
+                    >
+                      Limpar seleção
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="mb-4 grid gap-3">
             <label className="relative">
               <span className="field-label">Buscar</span>
@@ -613,12 +726,23 @@ function MembersContent() {
               filteredMembers.map((member) => (
                 <div className="border-b border-line pb-3 last:border-0 last:pb-0" key={member.id}>
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 gap-3">
+                      {canDeleteMembers ? (
+                        <input
+                          aria-label={`Selecionar ${member.full_name}`}
+                          checked={selectedMemberIds.has(member.id)}
+                          className="mt-1 h-5 w-5 shrink-0 accent-forest"
+                          onChange={() => toggleMemberSelection(member.id)}
+                          type="checkbox"
+                        />
+                      ) : null}
+                      <div className="min-w-0">
                       <p className="font-medium text-ink">{member.full_name}</p>
                       <p className="text-sm text-muted">{member.phone || "Sem telefone"}</p>
                       <p className="text-xs text-muted">
                         {member.neighborhood || "Sem bairro"} - {member.ministry || "Sem ministério"}
                       </p>
+                      </div>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
                       <StatusBadge tone={member.status === "ativo" ? "success" : "warning"}>
