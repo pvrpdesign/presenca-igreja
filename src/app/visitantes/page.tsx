@@ -5,6 +5,7 @@ import { Edit3, Save, Search, Trash2, UserPlus, X } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
+import { findPotentialDuplicate } from "@/lib/duplicates";
 import { supabase } from "@/lib/supabase";
 import type { Visitor } from "@/lib/types";
 
@@ -117,6 +118,24 @@ function VisitorsContent() {
       prayer_request: form.prayer_request.trim() || null,
       notes: form.notes.trim() || null
     };
+
+    const duplicate = findPotentialDuplicate(
+      visitors,
+      {
+        full_name: payload.full_name,
+        phone: payload.phone,
+        location: payload.location
+      },
+      editingVisitorId
+    );
+
+    if (duplicate) {
+      setMessage(
+        `Possível duplicidade: ${duplicate.full_name} já está cadastrado como visitante. Edite o cadastro existente.`
+      );
+      setIsSubmitting(false);
+      return;
+    }
 
     const { error } = editingVisitorId
       ? await supabase.from("visitors").update(payload).eq("id", editingVisitorId)

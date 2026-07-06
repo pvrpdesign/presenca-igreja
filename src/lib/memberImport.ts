@@ -1,4 +1,5 @@
 import type { Member, MemberStatus } from "@/lib/types";
+import { findPotentialDuplicate } from "@/lib/duplicates";
 
 export type RawImportRow = Record<string, string>;
 
@@ -71,10 +72,6 @@ function parseStatus(value: string): { status: MemberStatus; error?: string } {
   if (status) return { status };
 
   return { status: "ativo", error: "Status inválido" };
-}
-
-function duplicateKey(name: string, phone: string) {
-  return `${normalizeValue(name)}|${normalizeValue(phone)}`;
 }
 
 function splitDelimitedLine(line: string, delimiter: string) {
@@ -238,12 +235,9 @@ export async function readMemberImportFile(file: File) {
 
 export function prepareMemberImportRows(
   rawRows: RawImportRow[],
-  existingMembers: Pick<Member, "full_name" | "phone">[]
+  existingMembers: Pick<Member, "full_name" | "phone" | "neighborhood">[]
 ) {
-  const existingKeys = new Set(
-    existingMembers.map((member) => duplicateKey(member.full_name, member.phone ?? ""))
-  );
-  const seenKeys = new Set<string>();
+  const seenRows: Pick<Member, "full_name" | "phone" | "neighborhood">[] = [];
 
   return rawRows
     .map((rawRow, index) => {
@@ -262,17 +256,32 @@ export function prepareMemberImportRows(
       });
 
       const statusResult = parseStatus(mapped.status);
-      const key = duplicateKey(mapped.full_name, mapped.phone);
       const errors: string[] = [];
 
       if (!mapped.full_name) errors.push("Nome obrigatório");
       if (statusResult.error) errors.push(statusResult.error);
 
       const isDuplicate =
-        Boolean(mapped.full_name) && (existingKeys.has(key) || seenKeys.has(key));
+        Boolean(mapped.full_name) &&
+        Boolean(
+          findPotentialDuplicate(existingMembers, {
+            full_name: mapped.full_name,
+            phone: mapped.phone,
+            neighborhood: mapped.neighborhood
+          }) ||
+            findPotentialDuplicate(seenRows, {
+              full_name: mapped.full_name,
+              phone: mapped.phone,
+              neighborhood: mapped.neighborhood
+            })
+        );
 
       if (mapped.full_name) {
-        seenKeys.add(key);
+        seenRows.push({
+          full_name: mapped.full_name,
+          phone: mapped.phone,
+          neighborhood: mapped.neighborhood
+        });
       }
 
       return {

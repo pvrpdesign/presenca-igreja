@@ -20,6 +20,7 @@ import {
   readMemberImportFile,
   type MemberImportRow
 } from "@/lib/memberImport";
+import { findPotentialDuplicate } from "@/lib/duplicates";
 import { supabase } from "@/lib/supabase";
 import type { Member, MemberStatus } from "@/lib/types";
 
@@ -147,6 +148,15 @@ function MembersContent() {
       status: form.status,
       notes: form.notes.trim() || null
     };
+
+    const duplicate = findPotentialDuplicate(members, payload, editingMemberId);
+    if (duplicate) {
+      setMessage(
+        `Possível duplicidade: ${duplicate.full_name} já está cadastrado como membro. Edite o cadastro existente.`
+      );
+      setIsSubmitting(false);
+      return;
+    }
 
     const { error } = editingMemberId
       ? await supabase.from("members").update(payload).eq("id", editingMemberId)

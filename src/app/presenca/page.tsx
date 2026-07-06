@@ -15,6 +15,7 @@ import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDateBR, inferServiceType, serviceTitle, SERVICE_LABELS, todayInputValue } from "@/lib/date";
+import { findPotentialDuplicate } from "@/lib/duplicates";
 import { supabase } from "@/lib/supabase";
 import type { Attendance, Member, PersonType, Service, ServiceType, Visitor } from "@/lib/types";
 
@@ -606,15 +607,48 @@ function AttendanceContent() {
     setIsMarking(true);
     setMessage("");
 
+    const payload = {
+      full_name: quickVisitor.full_name.trim(),
+      phone: quickVisitor.phone.trim() || null,
+      location: quickVisitor.location.trim() || null,
+      how_heard: quickVisitor.how_heard.trim() || null,
+      prayer_request: quickVisitor.prayer_request.trim() || null,
+      notes: quickVisitor.notes.trim() || null
+    };
+
+    const { data: existingVisitors } = await supabase
+      .from("visitors")
+      .select("id, full_name, phone, location")
+      .limit(1000);
+
+    const duplicate = findPotentialDuplicate(
+      (existingVisitors ?? []) as Pick<Visitor, "id" | "full_name" | "phone" | "location">[],
+      {
+        full_name: payload.full_name,
+        phone: payload.phone,
+        location: payload.location
+      }
+    );
+
+    if (duplicate) {
+      await insertAttendance({
+        id: duplicate.id,
+        full_name: duplicate.full_name,
+        kind: "visitante"
+      });
+
+      setQuickVisitor(emptyQuickVisitor);
+      setShowQuickForm(false);
+      setQuery("");
+      setResults([]);
+      setIsMarking(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("visitors")
       .insert({
-        full_name: quickVisitor.full_name.trim(),
-        phone: quickVisitor.phone.trim() || null,
-        location: quickVisitor.location.trim() || null,
-        how_heard: quickVisitor.how_heard.trim() || null,
-        prayer_request: quickVisitor.prayer_request.trim() || null,
-        notes: quickVisitor.notes.trim() || null,
+        ...payload,
         created_by: session?.user.id ?? null
       })
       .select("id, full_name")
