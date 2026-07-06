@@ -21,7 +21,7 @@ import {
   readMemberImportFile,
   type MemberImportRow
 } from "@/lib/memberImport";
-import { findPotentialDuplicate } from "@/lib/duplicates";
+import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
 import { supabase } from "@/lib/supabase";
 import type { Member, MemberStatus } from "@/lib/types";
@@ -144,7 +144,7 @@ function MembersContent() {
 
     const payload = {
       full_name: form.full_name.trim(),
-      phone: form.phone.trim() || null,
+      phone: normalizeBrazilPhone(form.phone) || null,
       neighborhood: form.neighborhood.trim() || null,
       ministry: form.ministry.trim() || null,
       status: form.status,
@@ -250,7 +250,7 @@ function MembersContent() {
 
     const payload = validImportRows.map((row) => ({
       full_name: row.full_name,
-      phone: row.phone || null,
+      phone: normalizeBrazilPhone(row.phone) || null,
       neighborhood: row.neighborhood || null,
       ministry: row.ministry || null,
       status: row.status,

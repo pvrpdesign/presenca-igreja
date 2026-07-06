@@ -1,5 +1,5 @@
 import type { Member, MemberStatus } from "@/lib/types";
-import { findPotentialDuplicate } from "@/lib/duplicates";
+import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 
 export type RawImportRow = Record<string, string>;
 
@@ -254,6 +254,8 @@ export function prepareMemberImportRows(
         const field = findField(header);
         if (field) mapped[field] = cleanCell(value);
       });
+
+      mapped.phone = normalizeBrazilPhone(mapped.phone);
 
       const statusResult = parseStatus(mapped.status);
       const errors: string[] = [];

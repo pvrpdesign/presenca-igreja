@@ -15,8 +15,24 @@ export function normalizePersonName(value?: string | null) {
     .toLowerCase();
 }
 
+export function normalizeBrazilPhone(value?: string | null, defaultDdd = "71") {
+  const digits = (value ?? "").replace(/\D/g, "");
+
+  if (!digits) return "";
+
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith("55")) {
+    return digits.slice(2);
+  }
+
+  if (digits.length === 8 || digits.length === 9) {
+    return `${defaultDdd}${digits}`;
+  }
+
+  return digits;
+}
+
 export function normalizePhoneDigits(value?: string | null) {
-  return (value ?? "").replace(/\D/g, "");
+  return normalizeBrazilPhone(value);
 }
 
 function normalizePlace(person: DuplicatePersonCandidate) {

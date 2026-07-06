@@ -15,7 +15,7 @@ import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDateBR, inferServiceType, serviceTitle, SERVICE_LABELS, todayInputValue } from "@/lib/date";
-import { findPotentialDuplicate } from "@/lib/duplicates";
+import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 import { supabase } from "@/lib/supabase";
 import type { Attendance, Member, PersonType, Service, ServiceType, Visitor } from "@/lib/types";
 
@@ -609,7 +609,7 @@ function AttendanceContent() {
 
     const payload = {
       full_name: quickVisitor.full_name.trim(),
-      phone: quickVisitor.phone.trim() || null,
+      phone: normalizeBrazilPhone(quickVisitor.phone) || null,
       location: quickVisitor.location.trim() || null,
       how_heard: quickVisitor.how_heard.trim() || null,
       prayer_request: quickVisitor.prayer_request.trim() || null,

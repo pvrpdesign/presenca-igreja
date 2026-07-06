@@ -5,7 +5,7 @@ import { Edit3, FileDown, Save, Search, Trash2, UserPlus, X } from "lucide-react
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
-import { findPotentialDuplicate } from "@/lib/duplicates";
+import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
 import { supabase } from "@/lib/supabase";
 import type { Visitor } from "@/lib/types";
@@ -113,7 +113,7 @@ function VisitorsContent() {
 
     const payload = {
       full_name: form.full_name.trim(),
-      phone: form.phone.trim() || null,
+      phone: normalizeBrazilPhone(form.phone) || null,
       location: form.location.trim() || null,
       how_heard: form.how_heard.trim() || null,
       prayer_request: form.prayer_request.trim() || null,
