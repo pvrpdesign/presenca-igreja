@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   BarChart3,
@@ -16,7 +17,13 @@ import {
 import { AuthGate } from "@/components/AuthGate";
 import { MetricCard, Notice, PageHeader } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatDateBR, inferServiceType, SERVICE_LABELS, todayInputValue } from "@/lib/date";
+import {
+  formatDateBR,
+  inferServiceType,
+  serviceTitle,
+  SERVICE_LABELS,
+  todayInputValue
+} from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 import type { Attendance, Member, Service, ServiceType } from "@/lib/types";
 
@@ -49,15 +56,18 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { profile } = useAuth();
+  const router = useRouter();
+  const { profile, session } = useAuth();
   const [serviceDate, setServiceDate] = useState(todayInputValue());
   const [serviceType, setServiceType] = useState<ServiceType>(() =>
     inferServiceType(todayInputValue())
   );
   const [summary, setSummary] = useState<Summary>({ total: 0, members: 0, visitors: 0 });
   const [absenceAlert, setAbsenceAlert] = useState<AbsenceAlert>(emptyAbsenceAlert);
+  const [checkInMessage, setCheckInMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isAlertLoading, setIsAlertLoading] = useState(false);
+  const [isStartingCheckIn, setIsStartingCheckIn] = useState(false);
 
   const roleLabel = profile?.role === "lideranca" ? "Liderança" : "Recepção";
 
@@ -226,11 +236,52 @@ function DashboardContent() {
     loadAbsenceAlert();
   }, [loadAbsenceAlert]);
 
+  async function handleStartCheckIn() {
+    setCheckInMessage("");
+
+    if (!serviceDate) {
+      setCheckInMessage("Informe a data do culto para iniciar o check-in.");
+      return;
+    }
+
+    setIsStartingCheckIn(true);
+
+    const { data: existingService, error: existingServiceError } = await supabase
+      .from("services")
+      .select("id")
+      .eq("service_date", serviceDate)
+      .eq("service_type", serviceType)
+      .maybeSingle();
+
+    if (existingServiceError) {
+      setCheckInMessage("Não foi possível verificar se o culto já existe.");
+      setIsStartingCheckIn(false);
+      return;
+    }
+
+    if (!existingService) {
+      const { error: insertError } = await supabase.from("services").insert({
+        service_date: serviceDate,
+        service_type: serviceType,
+        title: serviceTitle(serviceDate, serviceType),
+        created_by: session?.user.id ?? null
+      });
+
+      if (insertError && insertError.code !== "23505") {
+        setCheckInMessage("Não foi possível criar o culto. Confira sua conexão e tente novamente.");
+        setIsStartingCheckIn(false);
+        return;
+      }
+    }
+
+    router.push(`/presenca?data=${serviceDate}&tipo=${serviceType}`);
+  }
+
   const actions = useMemo(
     () => [
       {
-        href: "/presenca",
-        label: "Registrar presença",
+        href: "#culto-atual",
+        label: "Iniciar culto",
         icon: ClipboardCheck,
         tone: "bg-forest text-white hover:bg-forestDark"
       },
@@ -288,7 +339,10 @@ function DashboardContent() {
         })}
       </section>
 
-      <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft">
+      <section
+        className="mb-5 scroll-mt-24 rounded-card border border-line bg-white p-4 shadow-soft"
+        id="culto-atual"
+      >
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-ink">
           <CalendarDays aria-hidden="true" size={18} />
           Culto atual
@@ -301,6 +355,7 @@ function DashboardContent() {
               onChange={(event) => {
                 setServiceDate(event.target.value);
                 setServiceType(inferServiceType(event.target.value));
+                setCheckInMessage("");
               }}
               type="date"
               value={serviceDate}
@@ -310,7 +365,10 @@ function DashboardContent() {
             <span className="field-label">Tipo de culto</span>
             <select
               className="field-input"
-              onChange={(event) => setServiceType(event.target.value as ServiceType)}
+              onChange={(event) => {
+                setServiceType(event.target.value as ServiceType);
+                setCheckInMessage("");
+              }}
               value={serviceType}
             >
               <option value="quarta">Quarta</option>
@@ -318,11 +376,21 @@ function DashboardContent() {
               <option value="especial">Especial</option>
             </select>
           </label>
-          <Link className="primary-button sm:mb-0" href={`/presenca?data=${serviceDate}&tipo=${serviceType}`}>
+          <button
+            className="primary-button sm:mb-0"
+            disabled={isStartingCheckIn}
+            onClick={handleStartCheckIn}
+            type="button"
+          >
             <Search aria-hidden="true" size={18} />
-            Check-in
-          </Link>
+            {isStartingCheckIn ? "Abrindo..." : "Iniciar culto / check-in"}
+          </button>
         </div>
+        {checkInMessage ? (
+          <p className="mt-3 rounded-card border border-gold/40 bg-gold/10 p-3 text-sm text-ink">
+            {checkInMessage}
+          </p>
+        ) : null}
         <p className="mt-3 text-sm text-muted">
           {SERVICE_LABELS[serviceType]} em {formatDateBR(serviceDate)}
         </p>
