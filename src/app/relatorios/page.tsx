@@ -139,7 +139,7 @@ function ReportsContent() {
   const [isLoading, setIsLoading] = useState(true);
 
   const lastServiceText = useMemo(() => {
-    if (!reports.lastService) return "Nenhum culto registrado";
+    if (!reports.lastService) return "Nenhum sábado registrado";
     return `${SERVICE_LABELS[reports.lastService.service_type]} em ${formatDateBR(
       reports.lastService.service_date
     )}`;
@@ -195,18 +195,18 @@ function ReportsContent() {
     downloadSimplePdf({
       fileName: datedFileName("relatorios-presenca", "pdf"),
       title: "Relatórios de presença",
-      subtitle: `${periodText} | Último culto: ${lastServiceText}`,
+      subtitle: `${periodText} | Último sábado: ${lastServiceText}`,
       sections: [
         {
-          title: `Membros ausentes no último culto (${filteredReports.absentLast.length})`,
+          title: `Membros ausentes no último sábado (${filteredReports.absentLast.length})`,
           lines: filteredReports.absentLast.map(memberLine)
         },
         {
-          title: `Membros com 2 faltas seguidas (${filteredReports.missedTwo.length})`,
+          title: `Membros com 2 sábados seguidos (${filteredReports.missedTwo.length})`,
           lines: filteredReports.missedTwo.map(memberLine)
         },
         {
-          title: `Membros com 3 faltas seguidas (${filteredReports.missedThree.length})`,
+          title: `Membros com 3 sábados seguidos (${filteredReports.missedThree.length})`,
           lines: filteredReports.missedThree.map(memberLine)
         },
         {
@@ -240,15 +240,12 @@ function ReportsContent() {
 
     setPeriodMessage("");
 
-    let servicesQuery = supabase
+    const servicesQuery = supabase
       .from("services")
       .select("id, service_date, service_type")
+      .eq("service_type", "sabado")
       .gte("service_date", reportStartDate)
       .lte("service_date", reportEndDate);
-
-    if (reportServiceType !== "todos") {
-      servicesQuery = servicesQuery.eq("service_type", reportServiceType);
-    }
 
     const { data: servicesData, error: servicesError } = await servicesQuery
       .order("service_date", { ascending: false })
@@ -257,7 +254,7 @@ function ReportsContent() {
 
     if (servicesError) {
       setReports(emptyReports);
-      setPeriodMessage("Não foi possível carregar os cultos deste período.");
+      setPeriodMessage("Não foi possível carregar os sábados deste período.");
       setIsLoading(false);
       return;
     }
@@ -410,12 +407,12 @@ function ReportsContent() {
       <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-muted">Último culto</p>
+            <p className="text-sm font-medium text-muted">Último sábado</p>
             <h2 className="mt-1 text-xl font-semibold text-ink">{lastServiceText}</h2>
             <p className="mt-1 text-sm text-muted">{periodText}</p>
           </div>
           <StatusBadge tone={reports.serviceCount > 0 ? "success" : "warning"}>
-            {reports.serviceCount} cultos na base
+            {reports.serviceCount} sábados na base
           </StatusBadge>
         </div>
       </section>
@@ -427,7 +424,7 @@ function ReportsContent() {
             <h2 className="text-base font-semibold text-ink">Período do relatório</h2>
           </div>
           <StatusBadge tone={reportServiceType === "todos" ? "neutral" : "success"}>
-            {reportServiceType === "todos" ? "Todos os cultos" : SERVICE_LABELS[reportServiceType]}
+            {reportServiceType === "todos" ? "Visitantes: todos" : `Visitantes: ${SERVICE_LABELS[reportServiceType]}`}
           </StatusBadge>
         </div>
 
@@ -454,7 +451,7 @@ function ReportsContent() {
               value={reportEndDate}
             />
           </Field>
-          <Field label="Tipo de culto">
+          <Field label="Tipo de culto dos visitantes">
             <select
               className="field-input"
               onChange={(event) =>
@@ -474,6 +471,9 @@ function ReportsContent() {
             {isLoading ? "Carregando..." : "Aplicar"}
           </button>
         </form>
+        <p className="mt-3 text-sm text-muted">
+          Faltas seguidas consideram apenas cultos de sábado. O tipo de culto acima filtra a recorrência de visitantes.
+        </p>
       </section>
 
       {periodMessage ? (
@@ -548,35 +548,35 @@ function ReportsContent() {
         <div className="grid gap-5 xl:grid-cols-2">
           <ReportSection
             count={filteredReports.absentLast.length}
-            emptyText="Nenhum membro ausente no último culto."
+            emptyText="Nenhum membro ausente no último sábado."
             hasActiveFilters={hasActiveFilters}
             icon={CalendarClock}
             items={filteredReports.absentLast}
-            title="Membros ausentes no último culto"
+            title="Membros ausentes no último sábado"
           />
           <ReportSection
             count={filteredReports.missedTwo.length}
             emptyText={
               reports.serviceCount < 2
-                ? "Ainda não há 2 cultos registrados."
-                : "Nenhum membro com 2 faltas seguidas."
+                ? "Ainda não há 2 cultos de sábado registrados."
+                : "Nenhum membro com 2 sábados seguidos."
             }
             hasActiveFilters={hasActiveFilters}
             icon={AlertCircle}
             items={filteredReports.missedTwo}
-            title="Membros com 2 faltas seguidas"
+            title="Membros com 2 sábados seguidos"
           />
           <ReportSection
             count={filteredReports.missedThree.length}
             emptyText={
               reports.serviceCount < 3
-                ? "Ainda não há 3 cultos registrados."
-                : "Nenhum membro com 3 faltas seguidas."
+                ? "Ainda não há 3 cultos de sábado registrados."
+                : "Nenhum membro com 3 sábados seguidos."
             }
             hasActiveFilters={hasActiveFilters}
             icon={AlertCircle}
             items={filteredReports.missedThree}
-            title="Membros com 3 faltas seguidas"
+            title="Membros com 3 sábados seguidos"
           />
           <VisitorSection
             emptyText="Nenhum visitante veio mais de uma vez."

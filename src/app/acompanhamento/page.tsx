@@ -58,7 +58,7 @@ const filterOptions: { label: string; value: FilterMode }[] = [
   { label: "Pendentes", value: "pendentes" },
   { label: "Todos", value: "todos" },
   { label: "Acompanhados", value: "acompanhados" },
-  { label: "3+ faltas", value: "criticos" }
+  { label: "3+ sábados", value: "criticos" }
 ];
 
 function onlyDigits(value: string) {
@@ -74,7 +74,7 @@ function getWhatsAppUrl(phone: string | null, fullName: string) {
   const normalizedPhone = digits.startsWith("55") ? digits : `55${digits}`;
   const firstName = fullName.trim().split(/\s+/)[0] || fullName;
   const message = encodeURIComponent(
-    `Olá, ${firstName}! Sentimos sua falta nos últimos cultos e queremos saber como você está. Podemos orar por você?`
+    `Olá, ${firstName}! Sentimos sua falta nos últimos sábados e queremos saber como você está. Podemos orar por você?`
   );
 
   return `https://wa.me/${normalizedPhone}?text=${message}`;
@@ -114,6 +114,7 @@ function FollowUpContent() {
     const { data: servicesData, error: servicesError } = await supabase
       .from("services")
       .select("id, service_date, service_type")
+      .eq("service_type", "sabado")
       .lte("service_date", todayInputValue())
       .order("service_date", { ascending: false })
       .order("created_at", { ascending: false })
@@ -188,6 +189,7 @@ function FollowUpContent() {
         .from("attendances")
         .select("person_id, service_date, service_type")
         .eq("person_type", "membro")
+        .eq("service_type", "sabado")
         .in("person_id", memberIds)
         .order("service_date", { ascending: false })
         .limit(5000);
@@ -393,7 +395,7 @@ function FollowUpContent() {
             <h2 className="mt-1 text-xl font-semibold text-ink">{currentServiceText}</h2>
           </div>
           <StatusBadge tone={serviceCount >= 2 ? "success" : "warning"}>
-            {serviceCount} cultos analisados
+            {serviceCount} sábados analisados
           </StatusBadge>
         </div>
       </section>
@@ -401,7 +403,7 @@ function FollowUpContent() {
       <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard icon={HeartHandshake} label="Pendentes" tone="wine" value={stats.pending} />
         <MetricCard icon={ShieldCheck} label="Acompanhados" value={stats.accompanied} />
-        <MetricCard icon={AlertCircle} label="Com 3+ faltas" tone="gold" value={stats.critical} />
+        <MetricCard icon={AlertCircle} label="Com 3+ sábados" tone="gold" value={stats.critical} />
         <MetricCard icon={UsersRound} label="Total na lista" value={stats.total} />
       </section>
 
@@ -460,8 +462,8 @@ function FollowUpContent() {
       ) : serviceCount < 2 ? (
         <Notice
           tone="warning"
-          title="Ainda não há cultos suficientes"
-          text="Cadastre pelo menos 2 cultos para o sistema montar a lista de acompanhamento."
+          title="Ainda não há sábados suficientes"
+          text="Cadastre pelo menos 2 cultos de sábado para o sistema montar a lista de acompanhamento."
         />
       ) : filteredItems.length === 0 ? (
         <Notice
@@ -494,7 +496,7 @@ function FollowUpContent() {
                     </p>
                   </div>
                   <StatusBadge tone={isAccompanied ? "success" : item.absenceStreak >= 3 ? "danger" : "warning"}>
-                    {isAccompanied ? "Acompanhado" : `${item.absenceStreak} faltas`}
+                    {isAccompanied ? "Acompanhado" : `${item.absenceStreak} sábados`}
                   </StatusBadge>
                 </div>
 

@@ -119,6 +119,7 @@ function DashboardContent() {
     const { data: servicesData, error: servicesError } = await supabase
       .from("services")
       .select("id, service_date, service_type, created_at")
+      .eq("service_type", "sabado")
       .lte("service_date", todayInputValue())
       .order("service_date", { ascending: false })
       .order("created_at", { ascending: false })
@@ -418,17 +419,17 @@ function DashboardContent() {
               <div>
                 <p className="text-sm font-semibold text-ink">Alerta de faltas seguidas</p>
                 {isAlertLoading ? (
-                  <p className="mt-1 text-sm text-muted">Verificando os últimos cultos...</p>
+                  <p className="mt-1 text-sm text-muted">Verificando os últimos sábados...</p>
                 ) : absenceAlert.recentServiceCount < 2 ? (
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    Cadastre pelo menos 2 cultos para o sistema calcular faltas seguidas.
+                    Cadastre pelo menos 2 cultos de sábado para o sistema calcular faltas seguidas.
                   </p>
                 ) : (
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    {absenceAlert.missedTwoCount} membros ativos faltaram nos 2 últimos cultos.
+                    {absenceAlert.missedTwoCount} membros ativos faltaram nos 2 últimos sábados.
                     {" "}
                     {absenceAlert.pendingFollowUpsCount} pendentes de acompanhamento.
-                    {absenceAlert.lastServiceText ? ` Último culto: ${absenceAlert.lastServiceText}.` : ""}
+                    {absenceAlert.lastServiceText ? ` Último sábado: ${absenceAlert.lastServiceText}.` : ""}
                   </p>
                 )}
               </div>
