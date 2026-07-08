@@ -71,6 +71,20 @@ export type MemberFollowUp = {
   updated_at: string;
 };
 
+export type VisitorFollowUp = {
+  id: string;
+  visitor_id: string;
+  last_service_id: string;
+  last_service_date: string;
+  absence_streak: number;
+  status: FollowUpStatus;
+  notes: string | null;
+  contacted_by: string | null;
+  contacted_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -163,6 +177,24 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Omit<MemberFollowUp, "id" | "created_at">>;
+        Relationships: [];
+      };
+      visitor_followups: {
+        Row: VisitorFollowUp;
+        Insert: {
+          id?: string;
+          visitor_id: string;
+          last_service_id: string;
+          last_service_date: string;
+          absence_streak: number;
+          status?: FollowUpStatus;
+          notes?: string | null;
+          contacted_by?: string | null;
+          contacted_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<VisitorFollowUp, "id" | "created_at">>;
         Relationships: [];
       };
     };

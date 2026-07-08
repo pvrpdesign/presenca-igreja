@@ -104,6 +104,21 @@ create table if not exists public.member_followups (
   constraint member_followups_unique_member_service unique (member_id, last_service_id)
 );
 
+create table if not exists public.visitor_followups (
+  id uuid primary key default gen_random_uuid(),
+  visitor_id uuid not null references public.visitors(id) on delete cascade,
+  last_service_id uuid not null references public.services(id) on delete cascade,
+  last_service_date date not null,
+  absence_streak integer not null check (absence_streak >= 2),
+  status text not null default 'pendente' check (status in ('pendente', 'acompanhado', 'removido')),
+  notes text,
+  contacted_by uuid references auth.users(id) on delete set null,
+  contacted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint visitor_followups_unique_visitor_service unique (visitor_id, last_service_id)
+);
+
 create index if not exists members_full_name_idx on public.members using gin (full_name gin_trgm_ops);
 create index if not exists members_status_idx on public.members (status);
 create index if not exists visitors_full_name_idx on public.visitors using gin (full_name gin_trgm_ops);
@@ -113,3 +128,5 @@ create index if not exists attendances_person_idx on public.attendances (person_
 create index if not exists attendances_date_type_idx on public.attendances (service_date desc, service_type);
 create index if not exists member_followups_member_idx on public.member_followups (member_id);
 create index if not exists member_followups_service_status_idx on public.member_followups (last_service_id, status);
+create index if not exists visitor_followups_visitor_idx on public.visitor_followups (visitor_id);
+create index if not exists visitor_followups_service_status_idx on public.visitor_followups (last_service_id, status);

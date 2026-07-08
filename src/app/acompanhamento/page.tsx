@@ -11,6 +11,7 @@ import {
   Search,
   ShieldCheck,
   Trash2,
+  UserRoundPlus,
   UsersRound
 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
@@ -23,16 +24,20 @@ import type {
   FollowUpStatus,
   Member,
   MemberFollowUp,
-  Service
+  PersonType,
+  Service,
+  Visitor,
+  VisitorFollowUp
 } from "@/lib/types";
 
 type FollowMember = Pick<Member, "id" | "full_name" | "phone" | "neighborhood" | "ministry">;
+type FollowVisitor = Pick<Visitor, "id" | "full_name" | "phone" | "location">;
 type ServiceSummary = Pick<Service, "id" | "service_date" | "service_type">;
 type AttendanceSummary = Pick<
   Attendance,
   "person_id" | "person_type" | "service_id" | "service_date" | "service_type"
 >;
-type FollowUpRow = Pick<
+type MemberFollowUpRow = Pick<
   MemberFollowUp,
   | "id"
   | "member_id"
@@ -44,20 +49,52 @@ type FollowUpRow = Pick<
   | "contacted_by"
   | "contacted_at"
 >;
+type VisitorFollowUpRow = Pick<
+  VisitorFollowUp,
+  | "id"
+  | "visitor_id"
+  | "last_service_id"
+  | "last_service_date"
+  | "absence_streak"
+  | "status"
+  | "notes"
+  | "contacted_by"
+  | "contacted_at"
+>;
+type FollowUpRow = {
+  id: string;
+  person_id: string;
+  last_service_id: string;
+  last_service_date: string;
+  absence_streak: number;
+  status: FollowUpStatus;
+  notes: string | null;
+  contacted_by: string | null;
+  contacted_at: string | null;
+};
 
-type FollowUpItem = FollowMember & {
+type FollowUpItem = {
+  kind: PersonType;
+  id: string;
+  full_name: string;
+  phone: string | null;
+  neighborhood?: string | null;
+  ministry?: string | null;
+  location?: string | null;
   absenceStreak: number;
   lastAttendance: Pick<Attendance, "service_date" | "service_type"> | null;
   lastService: ServiceSummary;
   followUp: FollowUpRow | null;
 };
 
-type FilterMode = "pendentes" | "todos" | "acompanhados" | "criticos";
+type FilterMode = "pendentes" | "todos" | "acompanhados" | "criticos" | "membros" | "visitantes";
 
 const filterOptions: { label: string; value: FilterMode }[] = [
   { label: "Pendentes", value: "pendentes" },
   { label: "Todos", value: "todos" },
   { label: "Acompanhados", value: "acompanhados" },
+  { label: "Membros", value: "membros" },
+  { label: "Visitantes", value: "visitantes" },
   { label: "3+ sábados", value: "criticos" }
 ];
 
@@ -85,6 +122,14 @@ function lastAttendanceText(attendance: FollowUpItem["lastAttendance"]) {
   return `${SERVICE_LABELS[attendance.service_type]} em ${formatDateBR(attendance.service_date)}`;
 }
 
+function itemKey(item: Pick<FollowUpItem, "id" | "kind">) {
+  return `${item.kind}:${item.id}`;
+}
+
+function presentKey(personType: PersonType, serviceId: string) {
+  return `${personType}:${serviceId}`;
+}
+
 export default function FollowUpPage() {
   return (
     <AuthGate allowedRoles={["lideranca"]}>
@@ -96,7 +141,7 @@ export default function FollowUpPage() {
 function FollowUpContent() {
   const { session } = useAuth();
   const [items, setItems] = useState<FollowUpItem[]>([]);
-  const [notesByMember, setNotesByMember] = useState<Record<string, string>>({});
+  const [notesByItem, setNotesByItem] = useState<Record<string, string>>({});
   const [currentService, setCurrentService] = useState<ServiceSummary | null>(null);
   const [serviceCount, setServiceCount] = useState(0);
   const [filter, setFilter] = useState<FilterMode>("pendentes");
@@ -135,10 +180,12 @@ function FollowUpContent() {
 
     if (services.length < 2) {
       setItems([]);
-      setNotesByMember({});
+      setNotesByItem({});
       setIsLoading(false);
       return;
     }
+
+    const serviceIds = services.map((service) => service.id);
 
     const { data: membersData, error: membersError } = await supabase
       .from("members")
@@ -146,26 +193,37 @@ function FollowUpContent() {
       .eq("status", "ativo")
       .order("full_name", { ascending: true });
 
-    if (membersError) {
+    const { data: visitorsData, error: visitorsError } = await supabase
+      .from("visitors")
+      .select("id, full_name, phone, location")
+      .order("full_name", { ascending: true });
+
+    if (membersError || visitorsError) {
       setItems([]);
-      setMessage("Não foi possível carregar os membros.");
+      setMessage("Não foi possível carregar membros e visitantes.");
       setIsLoading(false);
       return;
     }
 
     const activeMembers = (membersData ?? []) as FollowMember[];
-    const serviceIds = services.map((service) => service.id);
+    const visitors = (visitorsData ?? []) as FollowVisitor[];
+
     const { data: attendanceData } = await supabase
       .from("attendances")
       .select("person_id, person_type, service_id, service_date, service_type")
-      .eq("person_type", "membro")
+      .in("person_type", ["membro", "visitante"])
       .in("service_id", serviceIds);
 
     const attendances = (attendanceData ?? []) as AttendanceSummary[];
     const presentByService = new Map<string, Set<string>>();
-    services.forEach((service) => presentByService.set(service.id, new Set()));
+    services.forEach((service) => {
+      presentByService.set(presentKey("membro", service.id), new Set());
+      presentByService.set(presentKey("visitante", service.id), new Set());
+    });
     attendances.forEach((attendance) => {
-      presentByService.get(attendance.service_id)?.add(attendance.person_id);
+      presentByService
+        .get(presentKey(attendance.person_type, attendance.service_id))
+        ?.add(attendance.person_id);
     });
 
     const membersWithStreak = activeMembers
@@ -173,7 +231,7 @@ function FollowUpContent() {
         let absenceStreak = 0;
 
         for (const service of services) {
-          if (presentByService.get(service.id)?.has(member.id)) break;
+          if (presentByService.get(presentKey("membro", service.id))?.has(member.id)) break;
           absenceStreak += 1;
         }
 
@@ -181,7 +239,44 @@ function FollowUpContent() {
       })
       .filter((member) => member.absenceStreak >= 2);
 
+    const { data: visitorLastAttendanceData } = await supabase
+      .from("attendances")
+      .select("person_id, service_date, service_type")
+      .eq("person_type", "visitante")
+      .eq("service_type", "sabado")
+      .order("service_date", { ascending: false })
+      .limit(5000);
+
+    const lastAttendanceByVisitor = new Map<string, Pick<Attendance, "service_date" | "service_type">>();
+
+    ((visitorLastAttendanceData ?? []) as Pick<
+      Attendance,
+      "person_id" | "service_date" | "service_type"
+    >[]).forEach((attendance) => {
+      if (!lastAttendanceByVisitor.has(attendance.person_id)) {
+        lastAttendanceByVisitor.set(attendance.person_id, {
+          service_date: attendance.service_date,
+          service_type: attendance.service_type
+        });
+      }
+    });
+
+    const visitorsWithStreak = visitors
+      .filter((visitor) => lastAttendanceByVisitor.has(visitor.id))
+      .map((visitor) => {
+        let absenceStreak = 0;
+
+        for (const service of services) {
+          if (presentByService.get(presentKey("visitante", service.id))?.has(visitor.id)) break;
+          absenceStreak += 1;
+        }
+
+        return { ...visitor, absenceStreak };
+      })
+      .filter((visitor) => visitor.absenceStreak >= 2);
+
     const memberIds = membersWithStreak.map((member) => member.id);
+    const visitorIds = visitorsWithStreak.map((visitor) => visitor.id);
     const lastAttendanceByMember = new Map<string, Pick<Attendance, "service_date" | "service_type">>();
 
     if (memberIds.length > 0) {
@@ -207,7 +302,8 @@ function FollowUpContent() {
       });
     }
 
-    let followUps: FollowUpRow[] = [];
+    let memberFollowUps: FollowUpRow[] = [];
+    let visitorFollowUps: FollowUpRow[] = [];
 
     if (memberIds.length > 0 && services[0]) {
       const { data: followUpData, error: followUpError } = await supabase
@@ -221,29 +317,64 @@ function FollowUpContent() {
       if (followUpError) {
         setNeedsSqlSetup(true);
       } else {
-        followUps = (followUpData ?? []) as FollowUpRow[];
+        memberFollowUps = ((followUpData ?? []) as MemberFollowUpRow[]).map((followUp) => ({
+          ...followUp,
+          person_id: followUp.member_id
+        }));
       }
     }
 
-    const followUpByMember = new Map(followUps.map((followUp) => [followUp.member_id, followUp]));
-    const nextItems = membersWithStreak
+    if (visitorIds.length > 0 && services[0]) {
+      const { data: followUpData, error: followUpError } = await supabase
+        .from("visitor_followups")
+        .select(
+          "id, visitor_id, last_service_id, last_service_date, absence_streak, status, notes, contacted_by, contacted_at"
+        )
+        .eq("last_service_id", services[0].id)
+        .in("visitor_id", visitorIds);
+
+      if (followUpError) {
+        setNeedsSqlSetup(true);
+      } else {
+        visitorFollowUps = ((followUpData ?? []) as VisitorFollowUpRow[]).map((followUp) => ({
+          ...followUp,
+          person_id: followUp.visitor_id
+        }));
+      }
+    }
+
+    const followUpByMember = new Map(memberFollowUps.map((followUp) => [followUp.person_id, followUp]));
+    const followUpByVisitor = new Map(visitorFollowUps.map((followUp) => [followUp.person_id, followUp]));
+    const memberItems: FollowUpItem[] = membersWithStreak
       .map((member) => ({
         ...member,
+        kind: "membro" as PersonType,
         lastAttendance: lastAttendanceByMember.get(member.id) ?? null,
         lastService: services[0],
         followUp: followUpByMember.get(member.id) ?? null
-      }))
+      }));
+    const visitorItems: FollowUpItem[] = visitorsWithStreak.map((visitor) => ({
+      ...visitor,
+      kind: "visitante" as PersonType,
+      neighborhood: visitor.location,
+      ministry: "Visitante",
+      lastAttendance: lastAttendanceByVisitor.get(visitor.id) ?? null,
+      lastService: services[0],
+      followUp: followUpByVisitor.get(visitor.id) ?? null
+    }));
+    const nextItems = [...memberItems, ...visitorItems]
       .filter((item) => item.followUp?.status !== "removido")
       .sort(
         (a, b) =>
           b.absenceStreak - a.absenceStreak ||
+          a.kind.localeCompare(b.kind, "pt-BR") ||
           a.full_name.localeCompare(b.full_name, "pt-BR")
       );
 
     setItems(nextItems);
-    setNotesByMember(
+    setNotesByItem(
       Object.fromEntries(
-        nextItems.map((item) => [item.id, item.followUp?.notes ?? ""])
+        nextItems.map((item) => [itemKey(item), item.followUp?.notes ?? ""])
       )
     );
     setIsLoading(false);
@@ -261,7 +392,9 @@ function FollowUpContent() {
       total: items.length,
       pending: items.length - accompanied,
       accompanied,
-      critical
+      critical,
+      members: items.filter((item) => item.kind === "membro").length,
+      visitors: items.filter((item) => item.kind === "visitante").length
     };
   }, [items]);
 
@@ -274,12 +407,14 @@ function FollowUpContent() {
         filter === "todos" ||
         (filter === "pendentes" && !isAccompanied) ||
         (filter === "acompanhados" && isAccompanied) ||
-        (filter === "criticos" && item.absenceStreak >= 3);
+        (filter === "criticos" && item.absenceStreak >= 3) ||
+        (filter === "membros" && item.kind === "membro") ||
+        (filter === "visitantes" && item.kind === "visitante");
 
       if (!matchesFilter) return false;
       if (!normalizedSearch) return true;
 
-      return [item.full_name, item.phone, item.neighborhood, item.ministry]
+      return [item.full_name, item.phone, item.neighborhood, item.ministry, item.location, item.kind]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(normalizedSearch));
     });
@@ -295,30 +430,44 @@ function FollowUpContent() {
 
       const nextStatus = status ?? item.followUp?.status ?? "pendente";
       const isAccompanied = nextStatus === "acompanhado";
-      const saveKey = `${item.id}:${nextStatus}`;
+      const currentItemKey = itemKey(item);
+      const saveKey = `${currentItemKey}:${nextStatus}`;
 
       setSavingId(saveKey);
       setMessage("");
 
-      const { error } = await supabase.from("member_followups").upsert(
-        {
-          member_id: item.id,
-          last_service_id: item.lastService.id,
-          last_service_date: item.lastService.service_date,
-          absence_streak: item.absenceStreak,
-          status: nextStatus,
-          notes: notesByMember[item.id]?.trim() || null,
-          contacted_by: isAccompanied ? item.followUp?.contacted_by ?? session.user.id : null,
-          contacted_at: isAccompanied
-            ? item.followUp?.contacted_at ?? new Date().toISOString()
-            : null
-        },
-        { onConflict: "member_id,last_service_id" }
-      );
+      const payload = {
+        last_service_id: item.lastService.id,
+        last_service_date: item.lastService.service_date,
+        absence_streak: item.absenceStreak,
+        status: nextStatus,
+        notes: notesByItem[currentItemKey]?.trim() || null,
+        contacted_by: isAccompanied ? item.followUp?.contacted_by ?? session.user.id : null,
+        contacted_at: isAccompanied
+          ? item.followUp?.contacted_at ?? new Date().toISOString()
+          : null
+      };
+
+      const { error } =
+        item.kind === "membro"
+          ? await supabase.from("member_followups").upsert(
+              {
+                ...payload,
+                member_id: item.id
+              },
+              { onConflict: "member_id,last_service_id" }
+            )
+          : await supabase.from("visitor_followups").upsert(
+              {
+                ...payload,
+                visitor_id: item.id
+              },
+              { onConflict: "visitor_id,last_service_id" }
+            );
 
       if (error) {
         setNeedsSqlSetup(true);
-        setMessage("Não foi possível salvar. Rode o SQL 07 no Supabase e tente de novo.");
+        setMessage("Não foi possível salvar. Rode o SQL 12 no Supabase e tente de novo.");
         setSavingId(null);
         return;
       }
@@ -331,48 +480,63 @@ function FollowUpContent() {
       await loadFollowUps();
       setSavingId(null);
     },
-    [loadFollowUps, notesByMember, session?.user.id]
+    [loadFollowUps, notesByItem, session?.user.id]
   );
 
   const removeFromFollowUpList = useCallback(
     async (item: FollowUpItem) => {
       if (!session?.user.id) return;
 
+      const currentItemKey = itemKey(item);
+      const personLabel = item.kind === "membro" ? "membro" : "visitante";
       const confirmed = window.confirm(
-        `Excluir ${item.full_name} da lista de acompanhamento deste culto? O cadastro do membro não será apagado.`
+        `Excluir ${item.full_name} da lista de acompanhamento deste culto? O cadastro do ${personLabel} não será apagado.`
       );
 
       if (!confirmed) return;
 
-      setSavingId(`${item.id}:removido`);
+      setSavingId(`${currentItemKey}:removido`);
       setMessage("");
 
-      const { error } = await supabase.from("member_followups").upsert(
-        {
-          member_id: item.id,
-          last_service_id: item.lastService.id,
-          last_service_date: item.lastService.service_date,
-          absence_streak: item.absenceStreak,
-          status: "removido" as FollowUpStatus,
-          notes: notesByMember[item.id]?.trim() || item.followUp?.notes || null,
-          contacted_by: null,
-          contacted_at: null
-        },
-        { onConflict: "member_id,last_service_id" }
-      );
+      const payload = {
+        last_service_id: item.lastService.id,
+        last_service_date: item.lastService.service_date,
+        absence_streak: item.absenceStreak,
+        status: "removido" as FollowUpStatus,
+        notes: notesByItem[currentItemKey]?.trim() || item.followUp?.notes || null,
+        contacted_by: null,
+        contacted_at: null
+      };
+
+      const { error } =
+        item.kind === "membro"
+          ? await supabase.from("member_followups").upsert(
+              {
+                ...payload,
+                member_id: item.id
+              },
+              { onConflict: "member_id,last_service_id" }
+            )
+          : await supabase.from("visitor_followups").upsert(
+              {
+                ...payload,
+                visitor_id: item.id
+              },
+              { onConflict: "visitor_id,last_service_id" }
+            );
 
       if (error) {
         setNeedsSqlSetup(true);
-        setMessage("Não foi possível excluir da lista. Rode o SQL 09 no Supabase e tente de novo.");
+        setMessage("Não foi possível excluir da lista. Rode o SQL 12 no Supabase e tente de novo.");
         setSavingId(null);
         return;
       }
 
-      setMessage("Membro removido da lista de acompanhamento.");
+      setMessage("Pessoa removida da lista de acompanhamento.");
       await loadFollowUps();
       setSavingId(null);
     },
-    [loadFollowUps, notesByMember, session?.user.id]
+    [loadFollowUps, notesByItem, session?.user.id]
   );
 
   return (
@@ -400,11 +564,12 @@ function FollowUpContent() {
         </div>
       </section>
 
-      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <MetricCard icon={HeartHandshake} label="Pendentes" tone="wine" value={stats.pending} />
         <MetricCard icon={ShieldCheck} label="Acompanhados" value={stats.accompanied} />
+        <MetricCard icon={UsersRound} label="Membros" value={stats.members} />
+        <MetricCard icon={UserRoundPlus} label="Visitantes" tone="wine" value={stats.visitors} />
         <MetricCard icon={AlertCircle} label="Com 3+ sábados" tone="gold" value={stats.critical} />
-        <MetricCard icon={UsersRound} label="Total na lista" value={stats.total} />
       </section>
 
       {needsSqlSetup ? (
@@ -412,7 +577,7 @@ function FollowUpContent() {
           <Notice
             tone="warning"
             title="Atualização do Supabase pendente"
-            text="Rode o arquivo supabase/09_followup_removal.sql no SQL Editor para permitir excluir membros da lista de acompanhamento."
+            text="Rode o arquivo supabase/12_visitor_followups.sql no SQL Editor para ativar acompanhamento de visitantes."
           />
         </div>
       ) : null}
@@ -426,7 +591,7 @@ function FollowUpContent() {
       <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
           <label className="relative">
-            <span className="field-label">Buscar membro</span>
+            <span className="field-label">Buscar pessoa</span>
             <Search
               aria-hidden="true"
               className="pointer-events-none absolute bottom-3.5 left-3 text-muted"
@@ -435,7 +600,7 @@ function FollowUpContent() {
             <input
               className="field-input pl-10"
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Digite nome, bairro, ministério ou telefone"
+              placeholder="Digite nome, bairro, ministério, cidade ou telefone"
               value={search}
             />
           </label>
@@ -468,7 +633,7 @@ function FollowUpContent() {
       ) : filteredItems.length === 0 ? (
         <Notice
           tone="success"
-          title="Nenhum membro nesta lista"
+          title="Nenhuma pessoa nesta lista"
           text="Altere o filtro ou a busca para ver outros registros."
         />
       ) : (
@@ -476,6 +641,12 @@ function FollowUpContent() {
           {filteredItems.map((item) => {
             const isAccompanied = item.followUp?.status === "acompanhado";
             const whatsappUrl = getWhatsAppUrl(item.phone, item.full_name);
+            const currentItemKey = itemKey(item);
+            const personLabel = item.kind === "membro" ? "Membro" : "Visitante";
+            const detailText =
+              item.kind === "membro"
+                ? `${item.ministry || "Sem ministério"} • ${item.neighborhood || "Sem bairro"}`
+                : `${item.location || "Sem cidade/bairro"}`;
 
             return (
               <article
@@ -492,7 +663,7 @@ function FollowUpContent() {
                   <div>
                     <h2 className="text-lg font-semibold text-ink">{item.full_name}</h2>
                     <p className="mt-1 text-sm text-muted">
-                      {item.ministry || "Sem ministério"} • {item.neighborhood || "Sem bairro"}
+                      {personLabel} • {detailText}
                     </p>
                   </div>
                   <StatusBadge tone={isAccompanied ? "success" : item.absenceStreak >= 3 ? "danger" : "warning"}>
@@ -516,13 +687,13 @@ function FollowUpContent() {
                   <textarea
                     className="field-input min-h-24 resize-y"
                     onChange={(event) =>
-                      setNotesByMember((current) => ({
+                      setNotesByItem((current) => ({
                         ...current,
-                        [item.id]: event.target.value
+                        [currentItemKey]: event.target.value
                       }))
                     }
                     placeholder="Ex.: liguei, pediu oração, está enfermo, mudou de bairro..."
-                    value={notesByMember[item.id] ?? ""}
+                    value={notesByItem[currentItemKey] ?? ""}
                   />
                 </label>
 
@@ -545,7 +716,7 @@ function FollowUpContent() {
                   )}
                   <button
                     className="secondary-button"
-                    disabled={savingId === `${item.id}:${item.followUp?.status ?? "pendente"}`}
+                    disabled={savingId === `${currentItemKey}:${item.followUp?.status ?? "pendente"}`}
                     onClick={() => saveFollowUp(item)}
                     type="button"
                   >
@@ -555,7 +726,7 @@ function FollowUpContent() {
                   {isAccompanied ? (
                     <button
                       className="secondary-button"
-                      disabled={savingId === `${item.id}:pendente`}
+                      disabled={savingId === `${currentItemKey}:pendente`}
                       onClick={() => saveFollowUp(item, "pendente")}
                       type="button"
                     >
@@ -564,7 +735,7 @@ function FollowUpContent() {
                   ) : (
                     <button
                       className="primary-button"
-                      disabled={savingId === `${item.id}:acompanhado`}
+                      disabled={savingId === `${currentItemKey}:acompanhado`}
                       onClick={() => saveFollowUp(item, "acompanhado")}
                       type="button"
                     >
@@ -574,7 +745,7 @@ function FollowUpContent() {
                   )}
                   <button
                     className="danger-button"
-                    disabled={savingId === `${item.id}:removido`}
+                    disabled={savingId === `${currentItemKey}:removido`}
                     onClick={() => removeFromFollowUpList(item)}
                     type="button"
                   >

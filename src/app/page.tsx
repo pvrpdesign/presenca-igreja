@@ -34,14 +34,16 @@ type Summary = {
 };
 
 type AbsenceAlert = {
-  missedTwoCount: number;
+  missedTwoMembersCount: number;
+  missedTwoVisitorsCount: number;
   pendingFollowUpsCount: number;
   recentServiceCount: number;
   lastServiceText: string;
 };
 
 const emptyAbsenceAlert: AbsenceAlert = {
-  missedTwoCount: 0,
+  missedTwoMembersCount: 0,
+  missedTwoVisitorsCount: 0,
   pendingFollowUpsCount: 0,
   recentServiceCount: 0,
   lastServiceText: ""
@@ -139,7 +141,8 @@ function DashboardContent() {
     if (recentServices.length < 2) {
       const latestService = recentServices[0];
       setAbsenceAlert({
-        missedTwoCount: 0,
+        missedTwoMembersCount: 0,
+        missedTwoVisitorsCount: 0,
         pendingFollowUpsCount: 0,
         recentServiceCount: recentServices.length,
         lastServiceText: latestService
@@ -165,24 +168,11 @@ function DashboardContent() {
       (member) => member.id
     );
 
-    if (activeMemberIds.length === 0) {
-      setAbsenceAlert({
-        missedTwoCount: 0,
-        pendingFollowUpsCount: 0,
-        recentServiceCount: recentServices.length,
-        lastServiceText: `${SERVICE_LABELS[recentServices[0].service_type]} em ${formatDateBR(
-          recentServices[0].service_date
-        )}`
-      });
-      setIsAlertLoading(false);
-      return;
-    }
-
     const serviceIds = recentServices.map((service) => service.id);
     const { data: attendancesData, error: attendancesError } = await supabase
       .from("attendances")
       .select("person_id, service_id, person_type")
-      .eq("person_type", "membro")
+      .in("person_type", ["membro", "visitante"])
       .in("service_id", serviceIds);
 
     if (attendancesError) {
@@ -196,13 +186,34 @@ function DashboardContent() {
       Attendance,
       "person_id" | "service_id" | "person_type"
     >[]).forEach((attendance) => {
-      const currentSet = presentByService.get(attendance.service_id) ?? new Set<string>();
+      const key = `${attendance.person_type}:${attendance.service_id}`;
+      const currentSet = presentByService.get(key) ?? new Set<string>();
       currentSet.add(attendance.person_id);
-      presentByService.set(attendance.service_id, currentSet);
+      presentByService.set(key, currentSet);
     });
 
     const missedTwoMemberIds = activeMemberIds.filter((memberId) =>
-      recentServices.every((service) => !presentByService.get(service.id)?.has(memberId))
+      recentServices.every((service) => !presentByService.get(`membro:${service.id}`)?.has(memberId))
+    );
+
+    const { data: visitorHistoryData } = await supabase
+      .from("attendances")
+      .select("person_id")
+      .eq("person_type", "visitante")
+      .eq("service_type", "sabado")
+      .lte("service_date", todayInputValue())
+      .limit(5000);
+
+    const visitorIdsWithSaturdayHistory = [
+      ...new Set(
+        ((visitorHistoryData ?? []) as Pick<Attendance, "person_id">[]).map(
+          (attendance) => attendance.person_id
+        )
+      )
+    ];
+
+    const missedTwoVisitorIds = visitorIdsWithSaturdayHistory.filter((visitorId) =>
+      recentServices.every((service) => !presentByService.get(`visitante:${service.id}`)?.has(visitorId))
     );
 
     let accompaniedCount = 0;
@@ -218,9 +229,23 @@ function DashboardContent() {
       accompaniedCount = (followUpsData ?? []).length;
     }
 
+    if (missedTwoVisitorIds.length > 0) {
+      const { data: followUpsData } = await supabase
+        .from("visitor_followups")
+        .select("visitor_id, status")
+        .eq("last_service_id", recentServices[0].id)
+        .in("status", ["acompanhado", "removido"])
+        .in("visitor_id", missedTwoVisitorIds);
+
+      accompaniedCount += (followUpsData ?? []).length;
+    }
+
+    const missedTwoTotal = missedTwoMemberIds.length + missedTwoVisitorIds.length;
+
     setAbsenceAlert({
-      missedTwoCount: missedTwoMemberIds.length,
-      pendingFollowUpsCount: Math.max(missedTwoMemberIds.length - accompaniedCount, 0),
+      missedTwoMembersCount: missedTwoMemberIds.length,
+      missedTwoVisitorsCount: missedTwoVisitorIds.length,
+      pendingFollowUpsCount: Math.max(missedTwoTotal - accompaniedCount, 0),
       recentServiceCount: recentServices.length,
       lastServiceText: `${SERVICE_LABELS[recentServices[0].service_type]} em ${formatDateBR(
         recentServices[0].service_date
@@ -400,7 +425,7 @@ function DashboardContent() {
       {profile?.role === "lideranca" ? (
         <section
           className={`mb-5 rounded-card border p-4 shadow-soft sm:p-5 ${
-            absenceAlert.missedTwoCount > 0
+            absenceAlert.missedTwoMembersCount + absenceAlert.missedTwoVisitorsCount > 0
               ? "border-wine/30 bg-wine/5"
               : "border-line bg-white"
           }`}
@@ -409,7 +434,7 @@ function DashboardContent() {
             <div className="flex items-start gap-3">
               <span
                 className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-card ${
-                  absenceAlert.missedTwoCount > 0
+                  absenceAlert.missedTwoMembersCount + absenceAlert.missedTwoVisitorsCount > 0
                     ? "bg-wine/10 text-wine"
                     : "bg-forest/10 text-forest"
                 }`}
@@ -426,7 +451,8 @@ function DashboardContent() {
                   </p>
                 ) : (
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    {absenceAlert.missedTwoCount} membros ativos faltaram nos 2 últimos sábados.
+                    {absenceAlert.missedTwoMembersCount} membros ativos e{" "}
+                    {absenceAlert.missedTwoVisitorsCount} visitantes ficaram 2 sábados sem aparecer.
                     {" "}
                     {absenceAlert.pendingFollowUpsCount} pendentes de acompanhamento.
                     {absenceAlert.lastServiceText ? ` Último sábado: ${absenceAlert.lastServiceText}.` : ""}
