@@ -47,6 +47,7 @@ type ReportFilters = {
 };
 
 type ServiceTypeFilter = "todos" | ServiceType;
+type AudienceFilter = "todos" | "membros" | "visitantes";
 
 const emptyReports: Reports = {
   lastService: null,
@@ -71,6 +72,12 @@ const serviceTypeFilterOptions: { value: ServiceTypeFilter; label: string }[] = 
   { value: "quarta", label: "Quarta" },
   { value: "sabado", label: "Sábado" },
   { value: "especial", label: "Especial" }
+];
+
+const audienceFilterOptions: { value: AudienceFilter; label: string }[] = [
+  { value: "todos", label: "Todos" },
+  { value: "membros", label: "Só membros" },
+  { value: "visitantes", label: "Só visitantes" }
 ];
 
 function dateInputDaysAgo(days: number) {
@@ -135,6 +142,7 @@ function ReportsContent() {
   const [reportStartDate, setReportStartDate] = useState(dateInputDaysAgo(30));
   const [reportEndDate, setReportEndDate] = useState(todayInputValue());
   const [reportServiceType, setReportServiceType] = useState<ServiceTypeFilter>("todos");
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>("todos");
   const [periodMessage, setPeriodMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -167,9 +175,36 @@ function ReportsContent() {
     [filters, reports]
   );
 
+  const showMemberReports = audienceFilter !== "visitantes";
+  const showVisitorReports = audienceFilter !== "membros";
+  const audienceLabel =
+    audienceFilter === "membros"
+      ? "Membros"
+      : audienceFilter === "visitantes"
+        ? "Visitantes"
+        : "Todos";
+
+  const hasActiveMemberFilters = useMemo(
+    () =>
+      [filters.memberSearch, filters.ministry, filters.neighborhood].some(
+        (value) => value.trim().length > 0
+      ),
+    [filters.memberSearch, filters.ministry, filters.neighborhood]
+  );
+
+  const hasActiveVisitorFilters = useMemo(
+    () =>
+      [filters.visitorSearch, filters.visitorLocation].some(
+        (value) => value.trim().length > 0
+      ),
+    [filters.visitorLocation, filters.visitorSearch]
+  );
+
   const hasActiveFilters = useMemo(
-    () => Object.values(filters).some((value) => value.trim().length > 0),
-    [filters]
+    () =>
+      (showMemberReports && hasActiveMemberFilters) ||
+      (showVisitorReports && hasActiveVisitorFilters),
+    [hasActiveMemberFilters, hasActiveVisitorFilters, showMemberReports, showVisitorReports]
   );
 
   const periodText = useMemo(() => {
@@ -180,6 +215,13 @@ function ReportsContent() {
   function updateFilter(key: keyof ReportFilters, value: string) {
     setFilters((current) => ({ ...current, [key]: value }));
   }
+
+  const reportHint =
+    audienceFilter === "membros"
+      ? "Faltas de membros consideram apenas cultos de sábado."
+      : audienceFilter === "visitantes"
+        ? "O tipo de culto filtra a recorrência de visitantes no período."
+        : "Faltas de membros consideram apenas sábados. O tipo de culto filtra a recorrência de visitantes.";
 
   function handleDownloadPdf() {
     const memberLine = (member: ReportMember) =>
@@ -192,32 +234,42 @@ function ReportsContent() {
         visitor.location || "Sem cidade/bairro"
       } | ${visitor.total} presenças`;
 
+    const sections = [
+      ...(showMemberReports
+        ? [
+            {
+              title: `Membros ausentes no último sábado (${filteredReports.absentLast.length})`,
+              lines: filteredReports.absentLast.map(memberLine)
+            },
+            {
+              title: `Membros com 2 sábados seguidos (${filteredReports.missedTwo.length})`,
+              lines: filteredReports.missedTwo.map(memberLine)
+            },
+            {
+              title: `Membros com 3 sábados seguidos (${filteredReports.missedThree.length})`,
+              lines: filteredReports.missedThree.map(memberLine)
+            }
+          ]
+        : []),
+      ...(showVisitorReports
+        ? [
+            {
+              title: `Visitantes que vieram mais de uma vez (${filteredReports.visitorsMoreThanOnce.length})`,
+              lines: filteredReports.visitorsMoreThanOnce.map(visitorLine)
+            },
+            {
+              title: `Visitantes que vieram 3 vezes ou mais (${filteredReports.visitorsThreeOrMore.length})`,
+              lines: filteredReports.visitorsThreeOrMore.map(visitorLine)
+            }
+          ]
+        : [])
+    ];
+
     downloadSimplePdf({
       fileName: datedFileName("relatorios-presenca", "pdf"),
-      title: "Relatórios de presença",
+      title: `Relatórios de presença - ${audienceLabel}`,
       subtitle: `${periodText} | Último sábado: ${lastServiceText}`,
-      sections: [
-        {
-          title: `Membros ausentes no último sábado (${filteredReports.absentLast.length})`,
-          lines: filteredReports.absentLast.map(memberLine)
-        },
-        {
-          title: `Membros com 2 sábados seguidos (${filteredReports.missedTwo.length})`,
-          lines: filteredReports.missedTwo.map(memberLine)
-        },
-        {
-          title: `Membros com 3 sábados seguidos (${filteredReports.missedThree.length})`,
-          lines: filteredReports.missedThree.map(memberLine)
-        },
-        {
-          title: `Visitantes que vieram mais de uma vez (${filteredReports.visitorsMoreThanOnce.length})`,
-          lines: filteredReports.visitorsMoreThanOnce.map(visitorLine)
-        },
-        {
-          title: `Visitantes que vieram 3 vezes ou mais (${filteredReports.visitorsThreeOrMore.length})`,
-          lines: filteredReports.visitorsThreeOrMore.map(visitorLine)
-        }
-      ]
+      sections
     });
   }
 
@@ -424,12 +476,12 @@ function ReportsContent() {
             <h2 className="text-base font-semibold text-ink">Período do relatório</h2>
           </div>
           <StatusBadge tone={reportServiceType === "todos" ? "neutral" : "success"}>
-            {reportServiceType === "todos" ? "Visitantes: todos" : `Visitantes: ${SERVICE_LABELS[reportServiceType]}`}
+            {audienceLabel}
           </StatusBadge>
         </div>
 
         <form
-          className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]"
+          className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto]"
           onSubmit={(event) => {
             event.preventDefault();
             loadReports();
@@ -451,9 +503,23 @@ function ReportsContent() {
               value={reportEndDate}
             />
           </Field>
+          <Field label="Tipo de relatório">
+            <select
+              className="field-input"
+              onChange={(event) => setAudienceFilter(event.target.value as AudienceFilter)}
+              value={audienceFilter}
+            >
+              {audienceFilterOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Tipo de culto dos visitantes">
             <select
               className="field-input"
+              disabled={!showVisitorReports}
               onChange={(event) =>
                 setReportServiceType(event.target.value as ServiceTypeFilter)
               }
@@ -472,7 +538,7 @@ function ReportsContent() {
           </button>
         </form>
         <p className="mt-3 text-sm text-muted">
-          Faltas seguidas consideram apenas cultos de sábado. O tipo de culto acima filtra a recorrência de visitantes.
+          {reportHint}
         </p>
       </section>
 
@@ -499,46 +565,54 @@ function ReportsContent() {
         </div>
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <Field label="Buscar membro">
-            <input
-              className="field-input"
-              onChange={(event) => updateFilter("memberSearch", event.target.value)}
-              placeholder="Nome ou telefone"
-              value={filters.memberSearch}
-            />
-          </Field>
-          <Field label="Ministério">
-            <input
-              className="field-input"
-              onChange={(event) => updateFilter("ministry", event.target.value)}
-              placeholder="Ex.: louvor"
-              value={filters.ministry}
-            />
-          </Field>
-          <Field label="Bairro">
-            <input
-              className="field-input"
-              onChange={(event) => updateFilter("neighborhood", event.target.value)}
-              placeholder="Bairro"
-              value={filters.neighborhood}
-            />
-          </Field>
-          <Field label="Buscar visitante">
-            <input
-              className="field-input"
-              onChange={(event) => updateFilter("visitorSearch", event.target.value)}
-              placeholder="Nome ou telefone"
-              value={filters.visitorSearch}
-            />
-          </Field>
-          <Field label="Cidade/bairro visitante">
-            <input
-              className="field-input"
-              onChange={(event) => updateFilter("visitorLocation", event.target.value)}
-              placeholder="Cidade ou bairro"
-              value={filters.visitorLocation}
-            />
-          </Field>
+          {showMemberReports ? (
+            <>
+              <Field label="Buscar membro">
+                <input
+                  className="field-input"
+                  onChange={(event) => updateFilter("memberSearch", event.target.value)}
+                  placeholder="Nome ou telefone"
+                  value={filters.memberSearch}
+                />
+              </Field>
+              <Field label="Ministério">
+                <input
+                  className="field-input"
+                  onChange={(event) => updateFilter("ministry", event.target.value)}
+                  placeholder="Ex.: louvor"
+                  value={filters.ministry}
+                />
+              </Field>
+              <Field label="Bairro">
+                <input
+                  className="field-input"
+                  onChange={(event) => updateFilter("neighborhood", event.target.value)}
+                  placeholder="Bairro"
+                  value={filters.neighborhood}
+                />
+              </Field>
+            </>
+          ) : null}
+          {showVisitorReports ? (
+            <>
+              <Field label="Buscar visitante">
+                <input
+                  className="field-input"
+                  onChange={(event) => updateFilter("visitorSearch", event.target.value)}
+                  placeholder="Nome ou telefone"
+                  value={filters.visitorSearch}
+                />
+              </Field>
+              <Field label="Cidade/bairro visitante">
+                <input
+                  className="field-input"
+                  onChange={(event) => updateFilter("visitorLocation", event.target.value)}
+                  placeholder="Cidade ou bairro"
+                  value={filters.visitorLocation}
+                />
+              </Field>
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -546,52 +620,60 @@ function ReportsContent() {
         <Notice title="Carregando relatórios..." />
       ) : (
         <div className="grid gap-5 xl:grid-cols-2">
-          <ReportSection
-            count={filteredReports.absentLast.length}
-            emptyText="Nenhum membro ausente no último sábado."
-            hasActiveFilters={hasActiveFilters}
-            icon={CalendarClock}
-            items={filteredReports.absentLast}
-            title="Membros ausentes no último sábado"
-          />
-          <ReportSection
-            count={filteredReports.missedTwo.length}
-            emptyText={
-              reports.serviceCount < 2
-                ? "Ainda não há 2 cultos de sábado registrados."
-                : "Nenhum membro com 2 sábados seguidos."
-            }
-            hasActiveFilters={hasActiveFilters}
-            icon={AlertCircle}
-            items={filteredReports.missedTwo}
-            title="Membros com 2 sábados seguidos"
-          />
-          <ReportSection
-            count={filteredReports.missedThree.length}
-            emptyText={
-              reports.serviceCount < 3
-                ? "Ainda não há 3 cultos de sábado registrados."
-                : "Nenhum membro com 3 sábados seguidos."
-            }
-            hasActiveFilters={hasActiveFilters}
-            icon={AlertCircle}
-            items={filteredReports.missedThree}
-            title="Membros com 3 sábados seguidos"
-          />
-          <VisitorSection
-            emptyText="Nenhum visitante veio mais de uma vez."
-            hasActiveFilters={hasActiveFilters}
-            icon={UserRoundPlus}
-            items={filteredReports.visitorsMoreThanOnce}
-            title="Visitantes que vieram mais de uma vez"
-          />
-          <VisitorSection
-            emptyText="Nenhum visitante veio 3 vezes ou mais."
-            hasActiveFilters={hasActiveFilters}
-            icon={UserCheck}
-            items={filteredReports.visitorsThreeOrMore}
-            title="Visitantes que vieram 3 vezes ou mais"
-          />
+          {showMemberReports ? (
+            <>
+              <ReportSection
+                count={filteredReports.absentLast.length}
+                emptyText="Nenhum membro ausente no último sábado."
+                hasActiveFilters={hasActiveMemberFilters}
+                icon={CalendarClock}
+                items={filteredReports.absentLast}
+                title="Membros ausentes no último sábado"
+              />
+              <ReportSection
+                count={filteredReports.missedTwo.length}
+                emptyText={
+                  reports.serviceCount < 2
+                    ? "Ainda não há 2 cultos de sábado registrados."
+                    : "Nenhum membro com 2 sábados seguidos."
+                }
+                hasActiveFilters={hasActiveMemberFilters}
+                icon={AlertCircle}
+                items={filteredReports.missedTwo}
+                title="Membros com 2 sábados seguidos"
+              />
+              <ReportSection
+                count={filteredReports.missedThree.length}
+                emptyText={
+                  reports.serviceCount < 3
+                    ? "Ainda não há 3 cultos de sábado registrados."
+                    : "Nenhum membro com 3 sábados seguidos."
+                }
+                hasActiveFilters={hasActiveMemberFilters}
+                icon={AlertCircle}
+                items={filteredReports.missedThree}
+                title="Membros com 3 sábados seguidos"
+              />
+            </>
+          ) : null}
+          {showVisitorReports ? (
+            <>
+              <VisitorSection
+                emptyText="Nenhum visitante veio mais de uma vez."
+                hasActiveFilters={hasActiveVisitorFilters}
+                icon={UserRoundPlus}
+                items={filteredReports.visitorsMoreThanOnce}
+                title="Visitantes que vieram mais de uma vez"
+              />
+              <VisitorSection
+                emptyText="Nenhum visitante veio 3 vezes ou mais."
+                hasActiveFilters={hasActiveVisitorFilters}
+                icon={UserCheck}
+                items={filteredReports.visitorsThreeOrMore}
+                title="Visitantes que vieram 3 vezes ou mais"
+              />
+            </>
+          ) : null}
         </div>
       )}
     </div>
