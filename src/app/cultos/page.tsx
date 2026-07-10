@@ -29,6 +29,8 @@ type ServiceStats = {
   total: number;
   members: number;
   visitors: number;
+  pastors: number;
+  music: number;
 };
 
 type ServiceForm = {
@@ -40,7 +42,9 @@ type ServiceForm = {
 const emptyStats: ServiceStats = {
   total: 0,
   members: 0,
-  visitors: 0
+  visitors: 0,
+  pastors: 0,
+  music: 0
 };
 
 const serviceTypeOptions: { value: ServiceType; label: string }[] = [
@@ -177,8 +181,12 @@ function ServicesContent() {
 
         if (attendance.person_type === "membro") {
           current.members += 1;
-        } else {
+        } else if (attendance.person_type === "visitante") {
           current.visitors += 1;
+        } else if (attendance.person_type === "pastor") {
+          current.pastors += 1;
+        } else if (attendance.person_type === "musica") {
+          current.music += 1;
         }
 
         nextStats[attendance.service_id] = current;
@@ -460,6 +468,8 @@ function ServicesContent() {
                           <StatusBadge tone="neutral">{stats.total} presenças</StatusBadge>
                           <StatusBadge tone="neutral">{stats.members} membros</StatusBadge>
                           <StatusBadge tone="neutral">{stats.visitors} visitantes</StatusBadge>
+                          <StatusBadge tone="neutral">{stats.pastors} pastores</StatusBadge>
+                          <StatusBadge tone="neutral">{stats.music} músicas</StatusBadge>
                         </div>
                       </div>
 

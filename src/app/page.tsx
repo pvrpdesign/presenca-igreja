@@ -31,6 +31,8 @@ type Summary = {
   total: number;
   members: number;
   visitors: number;
+  pastors: number;
+  music: number;
 };
 
 type AbsenceAlert = {
@@ -64,7 +66,13 @@ function DashboardContent() {
   const [serviceType, setServiceType] = useState<ServiceType>(() =>
     inferServiceType(todayInputValue())
   );
-  const [summary, setSummary] = useState<Summary>({ total: 0, members: 0, visitors: 0 });
+  const [summary, setSummary] = useState<Summary>({
+    total: 0,
+    members: 0,
+    visitors: 0,
+    pastors: 0,
+    music: 0
+  });
   const [absenceAlert, setAbsenceAlert] = useState<AbsenceAlert>(emptyAbsenceAlert);
   const [checkInMessage, setCheckInMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -84,7 +92,7 @@ function DashboardContent() {
       .maybeSingle();
 
     if (serviceError || !service) {
-      setSummary({ total: 0, members: 0, visitors: 0 });
+      setSummary({ total: 0, members: 0, visitors: 0, pastors: 0, music: 0 });
       setIsLoading(false);
       return;
     }
@@ -95,7 +103,7 @@ function DashboardContent() {
       .eq("service_id", service.id);
 
     if (error) {
-      setSummary({ total: 0, members: 0, visitors: 0 });
+      setSummary({ total: 0, members: 0, visitors: 0, pastors: 0, music: 0 });
       setIsLoading(false);
       return;
     }
@@ -104,7 +112,9 @@ function DashboardContent() {
     setSummary({
       total: rows.length,
       members: rows.filter((row) => row.person_type === "membro").length,
-      visitors: rows.filter((row) => row.person_type === "visitante").length
+      visitors: rows.filter((row) => row.person_type === "visitante").length,
+      pastors: rows.filter((row) => row.person_type === "pastor").length,
+      music: rows.filter((row) => row.person_type === "musica").length
     });
     setIsLoading(false);
   }, [serviceDate, serviceType]);
@@ -464,10 +474,12 @@ function DashboardContent() {
       {isLoading ? (
         <Notice title="Carregando resumo..." />
       ) : (
-        <section className="grid gap-3 sm:grid-cols-3">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard icon={CalendarCheck} label="Total de presentes" value={summary.total} />
           <MetricCard icon={UsersRound} label="Membros presentes" tone="gold" value={summary.members} />
           <MetricCard icon={UserPlus} label="Visitantes presentes" tone="wine" value={summary.visitors} />
+          <MetricCard icon={HeartHandshake} label="Pastores presentes" value={summary.pastors} />
+          <MetricCard icon={BarChart3} label="Música Especial" tone="gold" value={summary.music} />
         </section>
       )}
     </div>

@@ -17,7 +17,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { formatDateBR, inferServiceType, serviceTitle, SERVICE_LABELS, todayInputValue } from "@/lib/date";
 import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 import { supabase } from "@/lib/supabase";
-import type { Attendance, Member, PersonType, Service, ServiceType, Visitor } from "@/lib/types";
+import type {
+  Attendance,
+  Member,
+  Pastor,
+  PersonType,
+  Service,
+  ServiceType,
+  SpecialMusic,
+  Visitor
+} from "@/lib/types";
 
 type SearchResult = {
   id: string;
@@ -72,10 +81,26 @@ const emptyQuickVisitor: QuickVisitorForm = {
 
 const MIN_SEARCH_LENGTH = 2;
 
+const personTypeLabels: Record<PersonType, string> = {
+  membro: "Membro",
+  visitante: "Visitante",
+  pastor: "Pastor",
+  musica: "Música Especial"
+};
+
+const personTypeOrder: Record<PersonType, number> = {
+  membro: 0,
+  visitante: 1,
+  pastor: 2,
+  musica: 3
+};
+
 const resultFilterOptions: { value: ResultFilter; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "membro", label: "Membros" },
   { value: "visitante", label: "Visitantes" },
+  { value: "pastor", label: "Pastores" },
+  { value: "musica", label: "Música Especial" },
   { value: "nao_marcados", label: "Não marcados" },
   { value: "marcados", label: "Marcados" }
 ];
@@ -83,7 +108,9 @@ const resultFilterOptions: { value: ResultFilter; label: string }[] = [
 const attendanceFilterOptions: { value: AttendanceListFilter; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "membro", label: "Membros" },
-  { value: "visitante", label: "Visitantes" }
+  { value: "visitante", label: "Visitantes" },
+  { value: "pastor", label: "Pastores" },
+  { value: "musica", label: "Música Especial" }
 ];
 
 const serviceTypeFilterOptions: { value: ServiceTypeFilter; label: string }[] = [
@@ -121,10 +148,17 @@ function sortByBestNameMatch(results: SearchResult[], term: string) {
     const bStarts = bName.startsWith(normalizedTerm);
 
     if (aStarts !== bStarts) return aStarts ? -1 : 1;
-    if (a.kind !== b.kind) return a.kind === "membro" ? -1 : 1;
+    if (a.kind !== b.kind) return personTypeOrder[a.kind] - personTypeOrder[b.kind];
 
     return a.full_name.localeCompare(b.full_name, "pt-BR");
   });
+}
+
+function personBadgeTone(kind: PersonType): "neutral" | "success" | "warning" | "danger" {
+  if (kind === "membro") return "success";
+  if (kind === "visitante") return "warning";
+  if (kind === "musica") return "danger";
+  return "neutral";
 }
 
 function isDateInputValue(value: string | null): value is string {
@@ -243,8 +277,14 @@ function AttendanceContent() {
     const visitorIds = attendanceRows
       .filter((attendance) => attendance.person_type === "visitante")
       .map((attendance) => attendance.person_id);
+    const pastorIds = attendanceRows
+      .filter((attendance) => attendance.person_type === "pastor")
+      .map((attendance) => attendance.person_id);
+    const musicIds = attendanceRows
+      .filter((attendance) => attendance.person_type === "musica")
+      .map((attendance) => attendance.person_id);
 
-    const [membersResponse, visitorsResponse] = await Promise.all([
+    const [membersResponse, visitorsResponse, pastorsResponse, musicResponse] = await Promise.all([
       memberIds.length > 0
         ? supabase
             .from("members")
@@ -256,6 +296,18 @@ function AttendanceContent() {
             .from("visitors")
             .select("id, full_name, phone, location")
             .in("id", visitorIds)
+        : Promise.resolve({ data: [] }),
+      pastorIds.length > 0
+        ? supabase
+            .from("pastors")
+            .select("id, full_name, phone, district")
+            .in("id", pastorIds)
+        : Promise.resolve({ data: [] }),
+      musicIds.length > 0
+        ? supabase
+            .from("special_music")
+            .select("id, performer_name, contact, church, visit_date")
+            .in("id", musicIds)
         : Promise.resolve({ data: [] })
     ]);
 
@@ -270,6 +322,18 @@ function AttendanceContent() {
         Visitor,
         "id" | "full_name" | "phone" | "location"
       >[]).map((visitor) => [visitor.id, visitor])
+    );
+    const pastorById = new Map(
+      ((pastorsResponse.data ?? []) as Pick<
+        Pastor,
+        "id" | "full_name" | "phone" | "district"
+      >[]).map((pastor) => [pastor.id, pastor])
+    );
+    const musicById = new Map(
+      ((musicResponse.data ?? []) as Pick<
+        SpecialMusic,
+        "id" | "performer_name" | "contact" | "church" | "visit_date"
+      >[]).map((music) => [music.id, music])
     );
 
     setCurrentAttendances(
@@ -287,14 +351,40 @@ function AttendanceContent() {
           };
         }
 
-        const visitor = visitorById.get(attendance.person_id);
+        if (attendance.person_type === "visitante") {
+          const visitor = visitorById.get(attendance.person_id);
+
+          return {
+            attendanceId: attendance.id,
+            personId: attendance.person_id,
+            personType: attendance.person_type,
+            fullName: visitor?.full_name ?? "Visitante removido",
+            detail: visitor?.phone || visitor?.location || null,
+            createdAt: attendance.created_at
+          };
+        }
+
+        if (attendance.person_type === "pastor") {
+          const pastor = pastorById.get(attendance.person_id);
+
+          return {
+            attendanceId: attendance.id,
+            personId: attendance.person_id,
+            personType: attendance.person_type,
+            fullName: pastor?.full_name ?? "Pastor removido",
+            detail: pastor?.phone || pastor?.district || null,
+            createdAt: attendance.created_at
+          };
+        }
+
+        const music = musicById.get(attendance.person_id);
 
         return {
           attendanceId: attendance.id,
           personId: attendance.person_id,
           personType: attendance.person_type,
-          fullName: visitor?.full_name ?? "Visitante removido",
-          detail: visitor?.phone || visitor?.location || null,
+          fullName: music?.performer_name ?? "Música Especial removida",
+          detail: music?.contact || music?.church || null,
           createdAt: attendance.created_at
         };
       })
@@ -310,7 +400,7 @@ function AttendanceContent() {
 
     setIsSearching(true);
 
-    const [membersResponse, visitorsResponse] = await Promise.all([
+    const [membersResponse, visitorsResponse, pastorsResponse, musicResponse] = await Promise.all([
       supabase
         .from("members")
         .select("id, full_name, phone, neighborhood, ministry, status")
@@ -321,7 +411,17 @@ function AttendanceContent() {
         .from("visitors")
         .select("id, full_name, phone, location")
         .ilike("full_name", `%${term}%`)
-        .order("full_name", { ascending: true })
+        .order("full_name", { ascending: true }),
+      supabase
+        .from("pastors")
+        .select("id, full_name, phone, district")
+        .ilike("full_name", `%${term}%`)
+        .order("full_name", { ascending: true }),
+      supabase
+        .from("special_music")
+        .select("id, performer_name, contact, church, visit_date")
+        .ilike("performer_name", `%${term}%`)
+        .order("performer_name", { ascending: true })
     ]);
 
     const memberRows = ((membersResponse.data ?? []) as Pick<
@@ -348,7 +448,35 @@ function AttendanceContent() {
       alreadyPresent: markedKeys.has(resultKey("visitante", visitor.id))
     }));
 
-    setResults(sortByBestNameMatch([...memberRows, ...visitorRows], term));
+    const pastorRows = ((pastorsResponse.data ?? []) as Pick<
+      Pastor,
+      "id" | "full_name" | "phone" | "district"
+    >[]).map((pastor) => ({
+      id: pastor.id,
+      full_name: pastor.full_name,
+      phone: pastor.phone,
+      detail: pastor.district,
+      kind: "pastor" as PersonType,
+      alreadyPresent: markedKeys.has(resultKey("pastor", pastor.id))
+    }));
+
+    const musicRows = ((musicResponse.data ?? []) as Pick<
+      SpecialMusic,
+      "id" | "performer_name" | "contact" | "church" | "visit_date"
+    >[]).map((music) => ({
+      id: music.id,
+      full_name: music.performer_name,
+      phone: music.contact,
+      detail: music.church
+        ? `${music.church} - ${formatDateBR(music.visit_date)}`
+        : formatDateBR(music.visit_date),
+      kind: "musica" as PersonType,
+      alreadyPresent: markedKeys.has(resultKey("musica", music.id))
+    }));
+
+    setResults(
+      sortByBestNameMatch([...memberRows, ...visitorRows, ...pastorRows, ...musicRows], term)
+    );
     setIsSearching(false);
   }, [markedKeys, query, resultKey]);
 
@@ -401,8 +529,14 @@ function AttendanceContent() {
     const visitorIds = attendanceRows
       .filter((attendance) => attendance.person_type === "visitante")
       .map((attendance) => attendance.person_id);
+    const pastorIds = attendanceRows
+      .filter((attendance) => attendance.person_type === "pastor")
+      .map((attendance) => attendance.person_id);
+    const musicIds = attendanceRows
+      .filter((attendance) => attendance.person_type === "musica")
+      .map((attendance) => attendance.person_id);
 
-    const [membersResponse, visitorsResponse] = await Promise.all([
+    const [membersResponse, visitorsResponse, pastorsResponse, musicResponse] = await Promise.all([
       memberIds.length > 0
         ? supabase
             .from("members")
@@ -414,6 +548,18 @@ function AttendanceContent() {
             .from("visitors")
             .select("id, full_name, phone, location")
             .in("id", visitorIds)
+        : Promise.resolve({ data: [] }),
+      pastorIds.length > 0
+        ? supabase
+            .from("pastors")
+            .select("id, full_name, phone, district")
+            .in("id", pastorIds)
+        : Promise.resolve({ data: [] }),
+      musicIds.length > 0
+        ? supabase
+            .from("special_music")
+            .select("id, performer_name, contact, church, visit_date")
+            .in("id", musicIds)
         : Promise.resolve({ data: [] })
     ]);
 
@@ -428,6 +574,18 @@ function AttendanceContent() {
         Visitor,
         "id" | "full_name" | "phone" | "location"
       >[]).map((visitor) => [visitor.id, visitor])
+    );
+    const pastorById = new Map(
+      ((pastorsResponse.data ?? []) as Pick<
+        Pastor,
+        "id" | "full_name" | "phone" | "district"
+      >[]).map((pastor) => [pastor.id, pastor])
+    );
+    const musicById = new Map(
+      ((musicResponse.data ?? []) as Pick<
+        SpecialMusic,
+        "id" | "performer_name" | "contact" | "church" | "visit_date"
+      >[]).map((music) => [music.id, music])
     );
 
     setHistoryRows(
@@ -447,14 +605,44 @@ function AttendanceContent() {
           };
         }
 
-        const visitor = visitorById.get(attendance.person_id);
+        if (attendance.person_type === "visitante") {
+          const visitor = visitorById.get(attendance.person_id);
+
+          return {
+            attendanceId: attendance.id,
+            personId: attendance.person_id,
+            personType: attendance.person_type,
+            fullName: visitor?.full_name ?? "Visitante removido",
+            detail: visitor?.phone || visitor?.location || null,
+            serviceDate: attendance.service_date,
+            serviceType: attendance.service_type,
+            createdAt: attendance.created_at
+          };
+        }
+
+        if (attendance.person_type === "pastor") {
+          const pastor = pastorById.get(attendance.person_id);
+
+          return {
+            attendanceId: attendance.id,
+            personId: attendance.person_id,
+            personType: attendance.person_type,
+            fullName: pastor?.full_name ?? "Pastor removido",
+            detail: pastor?.phone || pastor?.district || null,
+            serviceDate: attendance.service_date,
+            serviceType: attendance.service_type,
+            createdAt: attendance.created_at
+          };
+        }
+
+        const music = musicById.get(attendance.person_id);
 
         return {
           attendanceId: attendance.id,
           personId: attendance.person_id,
           personType: attendance.person_type,
-          fullName: visitor?.full_name ?? "Visitante removido",
-          detail: visitor?.phone || visitor?.location || null,
+          fullName: music?.performer_name ?? "Música Especial removida",
+          detail: music?.contact || music?.church || null,
           serviceDate: attendance.service_date,
           serviceType: attendance.service_type,
           createdAt: attendance.created_at
@@ -540,6 +728,13 @@ function AttendanceContent() {
 
       setMessage("Não foi possível marcar presença.");
       return;
+    }
+
+    if (person.kind === "musica") {
+      await supabase
+        .from("special_music")
+        .update({ visit_date: serviceDate })
+        .eq("id", person.id);
     }
 
     setMessage(`${person.full_name} marcado com presença.`);
@@ -779,7 +974,7 @@ function AttendanceContent() {
             ) : null}
 
             {query.trim().length < MIN_SEARCH_LENGTH ? (
-              <p className="text-sm text-muted">Digite 2 letras para localizar membros e visitantes.</p>
+              <p className="text-sm text-muted">Digite 2 letras para localizar membros, visitantes, pastores ou músicas especiais.</p>
             ) : results.length === 0 && !isSearching ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted">Nenhuma pessoa encontrada.</p>
@@ -810,8 +1005,8 @@ function AttendanceContent() {
                       <div className="min-w-0">
                         <div className="mb-2 flex flex-wrap items-center gap-2">
                           <p className="font-semibold text-ink">{person.full_name}</p>
-                          <StatusBadge tone={person.kind === "membro" ? "success" : "warning"}>
-                            {person.kind}
+                          <StatusBadge tone={personBadgeTone(person.kind)}>
+                            {personTypeLabels[person.kind]}
                           </StatusBadge>
                           {person.alreadyPresent ? (
                             <StatusBadge tone="success">presente</StatusBadge>
@@ -901,10 +1096,8 @@ function AttendanceContent() {
                       <div className="min-w-0">
                         <div className="mb-1 flex flex-wrap items-center gap-2">
                           <p className="font-medium text-ink">{attendance.fullName}</p>
-                          <StatusBadge
-                            tone={attendance.personType === "membro" ? "success" : "warning"}
-                          >
-                            {attendance.personType}
+                          <StatusBadge tone={personBadgeTone(attendance.personType)}>
+                            {personTypeLabels[attendance.personType]}
                           </StatusBadge>
                         </div>
                         <p className="text-sm text-muted">
@@ -1014,7 +1207,7 @@ function AttendanceContent() {
               </div>
               <h2 className="text-base font-semibold text-ink">Busca unificada</h2>
               <p className="mt-2 text-sm leading-6 text-muted">
-                A busca mostra membros ativos e visitantes cadastrados no mesmo lugar.
+                A busca mostra membros ativos, visitantes, pastores e músicas especiais no mesmo lugar.
               </p>
             </section>
           )}
@@ -1101,10 +1294,8 @@ function AttendanceContent() {
                   <div className="min-w-0">
                     <div className="mb-2 flex flex-wrap items-center gap-2">
                       <p className="font-medium text-ink">{attendance.fullName}</p>
-                      <StatusBadge
-                        tone={attendance.personType === "membro" ? "success" : "warning"}
-                      >
-                        {attendance.personType}
+                      <StatusBadge tone={personBadgeTone(attendance.personType)}>
+                        {personTypeLabels[attendance.personType]}
                       </StatusBadge>
                     </div>
                     <p className="text-sm text-muted">

@@ -1,7 +1,7 @@
 export type UserRole = "recepcao" | "lideranca";
 export type MemberStatus = "ativo" | "afastado" | "transferido";
 export type ServiceType = "quarta" | "sabado" | "especial";
-export type PersonType = "membro" | "visitante";
+export type PersonType = "membro" | "visitante" | "pastor" | "musica";
 export type FollowUpStatus = "pendente" | "acompanhado" | "removido";
 
 export type Profile = {

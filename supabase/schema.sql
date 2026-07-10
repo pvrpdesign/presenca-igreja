@@ -27,7 +27,7 @@ end;
 
 do '
 begin
-  create type public.person_type as enum (''membro'', ''visitante'');
+  create type public.person_type as enum (''membro'', ''visitante'', ''pastor'', ''musica'');
 exception
   when duplicate_object then null;
 end;
