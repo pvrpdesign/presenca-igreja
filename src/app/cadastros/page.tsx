@@ -82,6 +82,10 @@ function registryTone(kind: RegistryKind): "neutral" | "success" | "warning" | "
   return "danger";
 }
 
+function registryItemKey(item: Pick<RegistryItem, "kind" | "id">) {
+  return `${item.kind}:${item.id}`;
+}
+
 export default function UnifiedRegistryPage() {
   return (
     <AuthGate allowedRoles={["recepcao", "lideranca"]}>
@@ -103,6 +107,8 @@ function UnifiedRegistryContent() {
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
   const [importRows, setImportRows] = useState<MemberImportRow[]>([]);
   const [importFileName, setImportFileName] = useState("");
   const [importMessage, setImportMessage] = useState("");
@@ -202,6 +208,17 @@ function UnifiedRegistryContent() {
   );
 
   const importProblemCount = importRows.length - validImportRows.length;
+  const selectedItems = useMemo(
+    () => registryItems.filter((item) => selectedKeys.has(registryItemKey(item))),
+    [registryItems, selectedKeys]
+  );
+  const selectedFilteredKeys = useMemo(
+    () => filteredItems.map((item) => registryItemKey(item)),
+    [filteredItems]
+  );
+  const allFilteredSelected =
+    selectedFilteredKeys.length > 0 &&
+    selectedFilteredKeys.every((key) => selectedKeys.has(key));
 
   function resetForm(kind = form.kind) {
     setForm({ ...initialForm, kind });
@@ -264,6 +281,36 @@ function UnifiedRegistryContent() {
 
     setMessage("Editando cadastro selecionado.");
     document.getElementById("unified-registry-form")?.scrollIntoView({ behavior: "smooth" });
+  }
+
+  function toggleSelection(item: RegistryItem) {
+    const key = registryItemKey(item);
+
+    setSelectedKeys((current) => {
+      const next = new Set(current);
+
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+
+      return next;
+    });
+  }
+
+  function toggleFilteredSelection() {
+    setSelectedKeys((current) => {
+      const next = new Set(current);
+
+      if (allFilteredSelected) {
+        selectedFilteredKeys.forEach((key) => next.delete(key));
+      } else {
+        selectedFilteredKeys.forEach((key) => next.add(key));
+      }
+
+      return next;
+    });
   }
 
   function hasDuplicatePastor(payload: { full_name: string; phone: string | null }) {
@@ -449,6 +496,78 @@ function UnifiedRegistryContent() {
     }
 
     setMessage("Cadastro excluído com sucesso.");
+    await loadRegistries();
+  }
+
+  async function handleBulkDelete() {
+    if (!canDelete || selectedItems.length === 0 || isBulkDeleting) return;
+
+    const confirmed = window.confirm(
+      `Excluir ${selectedItems.length} cadastros selecionados? Esta ação não pode ser desfeita.`
+    );
+
+    if (!confirmed) return;
+
+    setIsBulkDeleting(true);
+    setMessage("");
+
+    const selectedByKind: Record<RegistryKind, string[]> = {
+      membro: [],
+      visitante: [],
+      pastor: [],
+      musica: []
+    };
+
+    selectedItems.forEach((item) => {
+      selectedByKind[item.kind].push(item.id);
+    });
+
+    let hasError = false;
+
+    if (selectedByKind.membro.length > 0) {
+      const { error } = await supabase.from("members").delete().in("id", selectedByKind.membro);
+      hasError = Boolean(error);
+    }
+
+    if (!hasError && selectedByKind.visitante.length > 0) {
+      const { error: attendanceError } = await supabase
+        .from("attendances")
+        .delete()
+        .eq("person_type", "visitante")
+        .in("person_id", selectedByKind.visitante);
+
+      if (attendanceError) {
+        hasError = true;
+      } else {
+        const { error } = await supabase.from("visitors").delete().in("id", selectedByKind.visitante);
+        hasError = Boolean(error);
+      }
+    }
+
+    if (!hasError && selectedByKind.pastor.length > 0) {
+      const { error } = await supabase.from("pastors").delete().in("id", selectedByKind.pastor);
+      hasError = Boolean(error);
+    }
+
+    if (!hasError && selectedByKind.musica.length > 0) {
+      const { error } = await supabase.from("special_music").delete().in("id", selectedByKind.musica);
+      hasError = Boolean(error);
+    }
+
+    setIsBulkDeleting(false);
+
+    if (hasError) {
+      setMessage("Não foi possível excluir todos os selecionados. Confira as permissões no Supabase.");
+      await loadRegistries();
+      return;
+    }
+
+    if (editing && selectedKeys.has(`${editing.kind}:${editing.id}`)) {
+      resetForm();
+    }
+
+    setSelectedKeys(new Set());
+    setMessage(`${selectedItems.length} cadastros excluídos com sucesso.`);
     await loadRegistries();
   }
 
@@ -872,7 +991,12 @@ function UnifiedRegistryContent() {
               <UserPlus aria-hidden="true" size={19} />
               <h2 className="text-base font-semibold text-ink">Lista de cadastros</h2>
             </div>
-            <StatusBadge tone="neutral">{filteredItems.length}</StatusBadge>
+            <div className="flex flex-wrap justify-end gap-2">
+              {canDelete && selectedItems.length > 0 ? (
+                <StatusBadge tone="warning">{selectedItems.length} selecionados</StatusBadge>
+              ) : null}
+              <StatusBadge tone="neutral">{filteredItems.length}</StatusBadge>
+            </div>
           </div>
 
           <div className="mb-4 grid gap-3">
@@ -918,14 +1042,52 @@ function UnifiedRegistryContent() {
             </button>
           </div>
 
+          {canDelete ? (
+            <div className="mb-4 rounded-card border border-line bg-paper p-3">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  className="secondary-button min-h-10 px-3 py-2"
+                  disabled={filteredItems.length === 0 || isBulkDeleting}
+                  onClick={toggleFilteredSelection}
+                  type="button"
+                >
+                  {allFilteredSelected ? "Desmarcar filtro" : "Selecionar filtro"}
+                </button>
+                <button
+                  className="danger-button min-h-10 px-3 py-2"
+                  disabled={selectedItems.length === 0 || isBulkDeleting}
+                  onClick={handleBulkDelete}
+                  type="button"
+                >
+                  <Trash2 aria-hidden="true" size={16} />
+                  {isBulkDeleting ? "Excluindo..." : "Excluir selecionados"}
+                </button>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                A seleção usa a lista filtrada. Filtre por tipo ou nome antes de selecionar.
+              </p>
+            </div>
+          ) : null}
+
           <div className="space-y-3">
             {filteredItems.length === 0 ? (
               <p className="text-sm text-muted">Nenhum cadastro encontrado.</p>
             ) : (
               filteredItems.map((item) => (
-                <div className="border-b border-line pb-3 last:border-0 last:pb-0" key={`${item.kind}:${item.id}`}>
+                <div className="border-b border-line pb-3 last:border-0 last:pb-0" key={registryItemKey(item)}>
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <div className="flex min-w-0 items-start gap-3">
+                      {canDelete ? (
+                        <input
+                          aria-label={`Selecionar ${item.title}`}
+                          checked={selectedKeys.has(registryItemKey(item))}
+                          className="mt-1 h-5 w-5 shrink-0 accent-forest"
+                          disabled={isBulkDeleting}
+                          onChange={() => toggleSelection(item)}
+                          type="checkbox"
+                        />
+                      ) : null}
+                      <div className="min-w-0">
                       <div className="mb-1 flex flex-wrap items-center gap-2">
                         <p className="font-medium text-ink">{item.title}</p>
                         <StatusBadge tone={registryTone(item.kind)}>
@@ -934,6 +1096,7 @@ function UnifiedRegistryContent() {
                       </div>
                       <p className="text-sm text-muted">{item.contact}</p>
                       <p className="text-xs text-muted">{item.detail}</p>
+                      </div>
                     </div>
                     <div className="flex shrink-0 flex-col gap-2">
                       <button
