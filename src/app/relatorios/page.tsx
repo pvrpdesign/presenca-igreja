@@ -835,7 +835,7 @@ function ReportsContent() {
                   value={filters.musicSearch}
                 />
               </Field>
-              <Field label="Igreja da música">
+              <Field label="Igreja do Cantor/Grupo">
                 <input
                   className="field-input"
                   onChange={(event) => updateFilter("musicChurch", event.target.value)}
