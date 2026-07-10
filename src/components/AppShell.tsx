@@ -49,6 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 height={40}
                 priority
                 src="/iasd-calcada-marca.png"
+                unoptimized
                 width={40}
               />
             </span>

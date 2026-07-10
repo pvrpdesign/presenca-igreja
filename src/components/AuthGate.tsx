@@ -17,19 +17,33 @@ export function AuthGate({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isLoading, session, profile } = useAuth();
+  const { authError, isLoading, session, profile } = useAuth();
 
   useEffect(() => {
-    if (!isLoading && !session && isSupabaseConfigured) {
+    if (!isLoading && !session && !authError && isSupabaseConfigured) {
       router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
     }
-  }, [isLoading, pathname, router, session]);
+  }, [authError, isLoading, pathname, router, session]);
 
   if (!isSupabaseConfigured) {
     return (
       <SetupPanel
         title="Supabase não configurado"
         text="Preencha NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY no arquivo .env.local para entrar no sistema."
+      />
+    );
+  }
+
+  if (authError) {
+    return (
+      <SetupPanel
+        action={
+          <button className="primary-button mt-5 w-full" onClick={() => window.location.reload()} type="button">
+            Tentar abrir novamente
+          </button>
+        }
+        title="Conexão lenta"
+        text={authError}
       />
     );
   }
@@ -73,7 +87,15 @@ export function AuthGate({
   return <AppShell>{children}</AppShell>;
 }
 
-function SetupPanel({ title, text }: { title: string; text: string }) {
+function SetupPanel({
+  action,
+  title,
+  text
+}: {
+  action?: React.ReactNode;
+  title: string;
+  text: string;
+}) {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <div className="w-full max-w-lg rounded-card border border-line bg-white p-6 shadow-soft">
@@ -82,6 +104,7 @@ function SetupPanel({ title, text }: { title: string; text: string }) {
         </div>
         <h1 className="text-xl font-semibold text-ink">{title}</h1>
         <p className="mt-2 text-sm leading-6 text-muted">{text}</p>
+        {action}
       </div>
     </div>
   );

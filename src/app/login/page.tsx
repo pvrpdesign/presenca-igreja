@@ -62,6 +62,7 @@ function LoginForm() {
             height={220}
             priority
             src="/iasd-calcada-logo.png"
+            unoptimized
             width={320}
           />
           <h1 className="text-xl font-semibold text-ink">Controle de Presença</h1>

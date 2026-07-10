@@ -13,6 +13,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import type { Profile } from "@/lib/types";
 
 type AuthContextValue = {
+  authError: string | null;
   isLoading: boolean;
   session: Session | null;
   profile: Profile | null;
@@ -21,8 +22,49 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const PROFILE_CACHE_KEY = "igreja-presenca.profile";
+const AUTH_TIMEOUT_MS = 8000;
+const PROFILE_TIMEOUT_MS = 6000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T | null> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  return Promise.race<T | null>([
+    promise,
+    new Promise<null>((resolve) => {
+      timeout = setTimeout(() => resolve(null), timeoutMs);
+    })
+  ]).finally(() => {
+    if (timeout) clearTimeout(timeout);
+  });
+}
+
+function readCachedProfile(userId: string) {
+  try {
+    const rawProfile = window.localStorage.getItem(PROFILE_CACHE_KEY);
+    if (!rawProfile) return null;
+
+    const cachedProfile = JSON.parse(rawProfile) as Profile;
+    return cachedProfile.id === userId ? cachedProfile : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedProfile(profile: Profile | null) {
+  try {
+    if (profile) {
+      window.localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(profile));
+    } else {
+      window.localStorage.removeItem(PROFILE_CACHE_KEY);
+    }
+  } catch {
+    // Local storage can be blocked in some browsers. The app still works without the cache.
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [authError, setAuthError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -36,11 +78,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (error) {
       console.error(error);
-      setProfile(null);
-      return;
+      return null;
     }
 
-    setProfile(data ?? null);
+    const nextProfile = data ?? null;
+    setProfile(nextProfile);
+    writeCachedProfile(nextProfile);
+    return nextProfile;
   }, []);
 
   const refreshProfile = useCallback(async () => {
@@ -57,12 +101,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let isMounted = true;
 
     async function bootstrap() {
-      const { data } = await supabase.auth.getSession();
+      setAuthError(null);
+
+      const sessionResponse = await withTimeout(
+        supabase.auth.getSession(),
+        AUTH_TIMEOUT_MS
+      );
+
       if (!isMounted) return;
 
+      if (!sessionResponse) {
+        setAuthError("A conexão demorou demais para confirmar o login. Verifique a internet e tente atualizar a página.");
+        setIsLoading(false);
+        return;
+      }
+
+      const { data } = sessionResponse;
       setSession(data.session);
+
       if (data.session?.user.id) {
-        await loadProfile(data.session.user.id);
+        const cachedProfile = readCachedProfile(data.session.user.id);
+
+        if (cachedProfile) {
+          setProfile(cachedProfile);
+          setIsLoading(false);
+          void loadProfile(data.session.user.id);
+          return;
+        }
+
+        const nextProfile = await withTimeout(
+          loadProfile(data.session.user.id),
+          PROFILE_TIMEOUT_MS
+        );
+
+        if (!isMounted) return;
+
+        if (!nextProfile) {
+          setAuthError("O login foi encontrado, mas o perfil demorou para carregar. Atualize a página ou tente novamente em alguns segundos.");
+        }
       }
 
       if (isMounted) setIsLoading(false);
@@ -73,11 +149,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription }
     } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      setAuthError(null);
       setSession(nextSession);
       if (nextSession?.user.id) {
+        const cachedProfile = readCachedProfile(nextSession.user.id);
+        if (cachedProfile) {
+          setProfile(cachedProfile);
+          setIsLoading(false);
+        }
         await loadProfile(nextSession.user.id);
       } else {
         setProfile(null);
+        writeCachedProfile(null);
       }
       setIsLoading(false);
     });
@@ -92,17 +175,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
+    writeCachedProfile(null);
   }, []);
 
   const value = useMemo(
     () => ({
+      authError,
       isLoading,
       session,
       profile,
       refreshProfile,
       signOut
     }),
-    [isLoading, profile, refreshProfile, session, signOut]
+    [authError, isLoading, profile, refreshProfile, session, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
