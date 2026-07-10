@@ -37,6 +37,27 @@ export type Visitor = {
   updated_at: string;
 };
 
+export type Pastor = {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  district: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SpecialMusic = {
+  id: string;
+  performer_name: string;
+  contact: string | null;
+  church: string | null;
+  visit_date: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Service = {
   id: string;
   service_date: string;
@@ -131,6 +152,35 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Omit<Visitor, "id" | "created_at">>;
+        Relationships: [];
+      };
+      pastors: {
+        Row: Pastor;
+        Insert: {
+          id?: string;
+          full_name: string;
+          phone?: string | null;
+          district?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<Pastor, "id" | "created_at">>;
+        Relationships: [];
+      };
+      special_music: {
+        Row: SpecialMusic;
+        Insert: {
+          id?: string;
+          performer_name: string;
+          contact?: string | null;
+          church?: string | null;
+          visit_date?: string;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<SpecialMusic, "id" | "created_at">>;
         Relationships: [];
       };
       services: {

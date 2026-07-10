@@ -66,6 +66,27 @@ create table if not exists public.visitors (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.pastors (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  phone text,
+  district text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.special_music (
+  id uuid primary key default gen_random_uuid(),
+  performer_name text not null,
+  contact text,
+  church text,
+  visit_date date not null default current_date,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.services (
   id uuid primary key default gen_random_uuid(),
   service_date date not null,
@@ -122,6 +143,9 @@ create table if not exists public.visitor_followups (
 create index if not exists members_full_name_idx on public.members using gin (full_name gin_trgm_ops);
 create index if not exists members_status_idx on public.members (status);
 create index if not exists visitors_full_name_idx on public.visitors using gin (full_name gin_trgm_ops);
+create index if not exists pastors_full_name_idx on public.pastors using gin (full_name gin_trgm_ops);
+create index if not exists special_music_performer_name_idx on public.special_music using gin (performer_name gin_trgm_ops);
+create index if not exists special_music_visit_date_idx on public.special_music (visit_date desc);
 create index if not exists services_date_type_idx on public.services (service_date desc, service_type);
 create index if not exists attendances_service_idx on public.attendances (service_id);
 create index if not exists attendances_person_idx on public.attendances (person_type, person_id);
@@ -146,6 +170,16 @@ for each row execute function public.set_updated_at();
 drop trigger if exists visitors_set_updated_at on public.visitors;
 create trigger visitors_set_updated_at
 before update on public.visitors
+for each row execute function public.set_updated_at();
+
+drop trigger if exists pastors_set_updated_at on public.pastors;
+create trigger pastors_set_updated_at
+before update on public.pastors
+for each row execute function public.set_updated_at();
+
+drop trigger if exists special_music_set_updated_at on public.special_music;
+create trigger special_music_set_updated_at
+before update on public.special_music
 for each row execute function public.set_updated_at();
 
 drop trigger if exists member_followups_set_updated_at on public.member_followups;
@@ -184,6 +218,8 @@ create or replace function public.current_user_role() returns public.user_role l
 alter table public.profiles enable row level security;
 alter table public.members enable row level security;
 alter table public.visitors enable row level security;
+alter table public.pastors enable row level security;
+alter table public.special_music enable row level security;
 alter table public.services enable row level security;
 alter table public.attendances enable row level security;
 alter table public.member_followups enable row level security;
@@ -257,6 +293,64 @@ on public.visitors
 for delete
 to authenticated
 using (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Reception and leadership can read pastors" on public.pastors;
+create policy "Reception and leadership can read pastors"
+on public.pastors
+for select
+to authenticated
+using (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Reception and leadership can insert pastors" on public.pastors;
+create policy "Reception and leadership can insert pastors"
+on public.pastors
+for insert
+to authenticated
+with check (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Reception and leadership can update pastors" on public.pastors;
+create policy "Reception and leadership can update pastors"
+on public.pastors
+for update
+to authenticated
+using (public.current_user_role() in ('recepcao', 'lideranca'))
+with check (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Leadership can delete pastors" on public.pastors;
+create policy "Leadership can delete pastors"
+on public.pastors
+for delete
+to authenticated
+using (public.current_user_role() = 'lideranca');
+
+drop policy if exists "Reception and leadership can read special music" on public.special_music;
+create policy "Reception and leadership can read special music"
+on public.special_music
+for select
+to authenticated
+using (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Reception and leadership can insert special music" on public.special_music;
+create policy "Reception and leadership can insert special music"
+on public.special_music
+for insert
+to authenticated
+with check (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Reception and leadership can update special music" on public.special_music;
+create policy "Reception and leadership can update special music"
+on public.special_music
+for update
+to authenticated
+using (public.current_user_role() in ('recepcao', 'lideranca'))
+with check (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Leadership can delete special music" on public.special_music;
+create policy "Leadership can delete special music"
+on public.special_music
+for delete
+to authenticated
+using (public.current_user_role() = 'lideranca');
 
 drop policy if exists "Reception and leadership can read services" on public.services;
 create policy "Reception and leadership can read services"
@@ -359,6 +453,8 @@ grant usage on schema public to anon, authenticated;
 grant select on public.profiles to authenticated;
 grant select, insert, update, delete on public.members to authenticated;
 grant select, insert, update, delete on public.visitors to authenticated;
+grant select, insert, update, delete on public.pastors to authenticated;
+grant select, insert, update, delete on public.special_music to authenticated;
 grant select, insert, update, delete on public.services to authenticated;
 grant select, insert, delete on public.attendances to authenticated;
 grant select, insert, update on public.member_followups to authenticated;

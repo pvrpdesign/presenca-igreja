@@ -17,7 +17,7 @@ import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { formatDateBR, SERVICE_LABELS, todayInputValue } from "@/lib/date";
 import { datedFileName, downloadSimplePdf } from "@/lib/exports";
 import { supabase } from "@/lib/supabase";
-import type { Attendance, Member, Service, ServiceType, Visitor } from "@/lib/types";
+import type { Attendance, Member, Service, ServiceType, SpecialMusic, Visitor } from "@/lib/types";
 
 type ReportMember = Pick<
   Member,
@@ -27,6 +27,10 @@ type ReportMember = Pick<
 type VisitorFrequency = Pick<Visitor, "id" | "full_name" | "phone" | "location"> & {
   total: number;
 };
+type SpecialMusicReport = Pick<
+  SpecialMusic,
+  "id" | "performer_name" | "contact" | "church" | "visit_date"
+>;
 
 type Reports = {
   lastService: Pick<Service, "id" | "service_date" | "service_type"> | null;
@@ -35,6 +39,7 @@ type Reports = {
   missedThree: ReportMember[];
   visitorsMoreThanOnce: VisitorFrequency[];
   visitorsThreeOrMore: VisitorFrequency[];
+  specialMusic: SpecialMusicReport[];
   serviceCount: number;
 };
 
@@ -44,10 +49,12 @@ type ReportFilters = {
   neighborhood: string;
   visitorSearch: string;
   visitorLocation: string;
+  musicSearch: string;
+  musicChurch: string;
 };
 
 type ServiceTypeFilter = "todos" | ServiceType;
-type AudienceFilter = "todos" | "membros" | "visitantes";
+type AudienceFilter = "todos" | "membros" | "visitantes" | "musica";
 
 const emptyReports: Reports = {
   lastService: null,
@@ -56,6 +63,7 @@ const emptyReports: Reports = {
   missedThree: [],
   visitorsMoreThanOnce: [],
   visitorsThreeOrMore: [],
+  specialMusic: [],
   serviceCount: 0
 };
 
@@ -64,7 +72,9 @@ const emptyReportFilters: ReportFilters = {
   ministry: "",
   neighborhood: "",
   visitorSearch: "",
-  visitorLocation: ""
+  visitorLocation: "",
+  musicSearch: "",
+  musicChurch: ""
 };
 
 const serviceTypeFilterOptions: { value: ServiceTypeFilter; label: string }[] = [
@@ -77,7 +87,8 @@ const serviceTypeFilterOptions: { value: ServiceTypeFilter; label: string }[] = 
 const audienceFilterOptions: { value: AudienceFilter; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "membros", label: "Só membros" },
-  { value: "visitantes", label: "Só visitantes" }
+  { value: "visitantes", label: "Só visitantes" },
+  { value: "musica", label: "Música Especial" }
 ];
 
 function dateInputDaysAgo(days: number) {
@@ -128,6 +139,21 @@ function matchesVisitorFilters(visitor: VisitorFrequency, filters: ReportFilters
   );
 }
 
+function matchesSpecialMusicFilters(music: SpecialMusicReport, filters: ReportFilters) {
+  const musicSearch = normalizeFilterValue(filters.musicSearch.trim());
+  const musicChurch = normalizeFilterValue(filters.musicChurch.trim());
+  const musicText = normalizeFilterValue(
+    [music.performer_name, music.contact, music.church, music.visit_date]
+      .filter(Boolean)
+      .join(" ")
+  );
+
+  return (
+    (!musicSearch || musicText.includes(musicSearch)) &&
+    (!musicChurch || normalizeFilterValue(music.church ?? "").includes(musicChurch))
+  );
+}
+
 export default function ReportsPage() {
   return (
     <AuthGate allowedRoles={["lideranca"]}>
@@ -170,19 +196,25 @@ function ReportsContent() {
       ),
       visitorsThreeOrMore: reports.visitorsThreeOrMore.filter((visitor) =>
         matchesVisitorFilters(visitor, filters)
+      ),
+      specialMusic: reports.specialMusic.filter((music) =>
+        matchesSpecialMusicFilters(music, filters)
       )
     }),
     [filters, reports]
   );
 
-  const showMemberReports = audienceFilter !== "visitantes";
-  const showVisitorReports = audienceFilter !== "membros";
+  const showMemberReports = audienceFilter !== "visitantes" && audienceFilter !== "musica";
+  const showVisitorReports = audienceFilter !== "membros" && audienceFilter !== "musica";
+  const showSpecialMusicReports = audienceFilter !== "membros" && audienceFilter !== "visitantes";
   const audienceLabel =
     audienceFilter === "membros"
       ? "Membros"
       : audienceFilter === "visitantes"
         ? "Visitantes"
-        : "Todos";
+        : audienceFilter === "musica"
+          ? "Música Especial"
+          : "Todos";
 
   const hasActiveMemberFilters = useMemo(
     () =>
@@ -200,11 +232,27 @@ function ReportsContent() {
     [filters.visitorLocation, filters.visitorSearch]
   );
 
+  const hasActiveMusicFilters = useMemo(
+    () =>
+      [filters.musicSearch, filters.musicChurch].some(
+        (value) => value.trim().length > 0
+      ),
+    [filters.musicChurch, filters.musicSearch]
+  );
+
   const hasActiveFilters = useMemo(
     () =>
       (showMemberReports && hasActiveMemberFilters) ||
-      (showVisitorReports && hasActiveVisitorFilters),
-    [hasActiveMemberFilters, hasActiveVisitorFilters, showMemberReports, showVisitorReports]
+      (showVisitorReports && hasActiveVisitorFilters) ||
+      (showSpecialMusicReports && hasActiveMusicFilters),
+    [
+      hasActiveMemberFilters,
+      hasActiveMusicFilters,
+      hasActiveVisitorFilters,
+      showMemberReports,
+      showSpecialMusicReports,
+      showVisitorReports
+    ]
   );
 
   const periodText = useMemo(() => {
@@ -221,7 +269,9 @@ function ReportsContent() {
       ? "Faltas de membros consideram apenas cultos de sábado."
       : audienceFilter === "visitantes"
         ? "O tipo de culto filtra a recorrência de visitantes no período."
-        : "Faltas de membros consideram apenas sábados. O tipo de culto filtra a recorrência de visitantes.";
+        : audienceFilter === "musica"
+          ? "Música Especial usa a data em que o cantor, cantora ou grupo esteve na igreja."
+          : "Faltas de membros consideram apenas sábados. Visitantes usam recorrência. Música Especial usa a data da participação.";
 
   function handleDownloadPdf() {
     const memberLine = (member: ReportMember) =>
@@ -233,6 +283,10 @@ function ReportsContent() {
       `${visitor.full_name} | ${visitor.phone || "Sem telefone"} | ${
         visitor.location || "Sem cidade/bairro"
       } | ${visitor.total} presenças`;
+    const musicLine = (music: SpecialMusicReport) =>
+      `${formatDateBR(music.visit_date)} | ${music.performer_name} | ${
+        music.contact || "Sem contato"
+      } | ${music.church || "Sem igreja"}`;
 
     const sections = [
       ...(showMemberReports
@@ -260,6 +314,14 @@ function ReportsContent() {
             {
               title: `Visitantes que vieram 3 vezes ou mais (${filteredReports.visitorsThreeOrMore.length})`,
               lines: filteredReports.visitorsThreeOrMore.map(visitorLine)
+            }
+          ]
+        : []),
+      ...(showSpecialMusicReports
+        ? [
+            {
+              title: `Música Especial no período (${filteredReports.specialMusic.length})`,
+              lines: filteredReports.specialMusic.map(musicLine)
             }
           ]
         : [])
@@ -416,6 +478,15 @@ function ReportsContent() {
       }))
       .sort((a, b) => b.total - a.total || a.full_name.localeCompare(b.full_name));
 
+    const { data: specialMusicData } = await supabase
+      .from("special_music")
+      .select("id, performer_name, contact, church, visit_date")
+      .gte("visit_date", reportStartDate)
+      .lte("visit_date", reportEndDate)
+      .order("visit_date", { ascending: false })
+      .order("performer_name", { ascending: true })
+      .limit(1000);
+
     setReports({
       lastService,
       absentLast,
@@ -423,6 +494,7 @@ function ReportsContent() {
       missedThree,
       visitorsMoreThanOnce: visitorsWithFrequency.filter((visitor) => visitor.total > 1),
       visitorsThreeOrMore: visitorsWithFrequency.filter((visitor) => visitor.total >= 3),
+      specialMusic: (specialMusicData ?? []) as SpecialMusicReport[],
       serviceCount: services.length
     });
     setIsLoading(false);
@@ -613,6 +685,26 @@ function ReportsContent() {
               </Field>
             </>
           ) : null}
+          {showSpecialMusicReports ? (
+            <>
+              <Field label="Buscar música especial">
+                <input
+                  className="field-input"
+                  onChange={(event) => updateFilter("musicSearch", event.target.value)}
+                  placeholder="Cantor, grupo ou contato"
+                  value={filters.musicSearch}
+                />
+              </Field>
+              <Field label="Igreja da música">
+                <input
+                  className="field-input"
+                  onChange={(event) => updateFilter("musicChurch", event.target.value)}
+                  placeholder="Igreja"
+                  value={filters.musicChurch}
+                />
+              </Field>
+            </>
+          ) : null}
         </div>
       </section>
 
@@ -673,6 +765,15 @@ function ReportsContent() {
                 title="Visitantes que vieram 3 vezes ou mais"
               />
             </>
+          ) : null}
+          {showSpecialMusicReports ? (
+            <SpecialMusicSection
+              emptyText="Nenhuma música especial encontrada no período."
+              hasActiveFilters={hasActiveMusicFilters}
+              icon={UserCheck}
+              items={filteredReports.specialMusic}
+              title="Música Especial no período"
+            />
           ) : null}
         </div>
       )}
@@ -768,6 +869,56 @@ function VisitorSection({
                   </p>
                 </div>
                 <StatusBadge tone="success">{visitor.total} presenças</StatusBadge>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SpecialMusicSection({
+  emptyText,
+  hasActiveFilters,
+  icon: Icon,
+  items,
+  title
+}: {
+  emptyText: string;
+  hasActiveFilters?: boolean;
+  icon: LucideIcon;
+  items: SpecialMusicReport[];
+  title: string;
+}) {
+  const emptyMessage = hasActiveFilters
+    ? "Nenhuma música especial encontrada com os filtros atuais."
+    : emptyText;
+
+  return (
+    <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Icon aria-hidden="true" size={19} />
+          <h2 className="text-base font-semibold text-ink">{title}</h2>
+        </div>
+        <StatusBadge tone={items.length > 0 ? "success" : "neutral"}>{items.length}</StatusBadge>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-sm text-muted">{emptyMessage}</p>
+      ) : (
+        <div className="space-y-3">
+          {items.map((music) => (
+            <div className="border-b border-line pb-3 last:border-0 last:pb-0" key={music.id}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-ink">{music.performer_name}</p>
+                  <p className="text-sm text-muted">
+                    {music.contact || "Sem contato"} - {music.church || "Sem igreja"}
+                  </p>
+                </div>
+                <StatusBadge tone="warning">{formatDateBR(music.visit_date)}</StatusBadge>
               </div>
             </div>
           ))}

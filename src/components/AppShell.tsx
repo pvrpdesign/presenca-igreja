@@ -10,8 +10,7 @@ import {
   HeartHandshake,
   Home,
   LogOut,
-  UserPlus,
-  UsersRound
+  UserPlus
 } from "lucide-react";
 import clsx from "clsx";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,8 +19,7 @@ const navigation = [
   { href: "/", label: "Início", icon: Home },
   { href: "/presenca", label: "Presença", icon: CalendarCheck },
   { href: "/cultos", label: "Cultos", icon: CalendarDays },
-  { href: "/membros", label: "Membros", icon: UsersRound },
-  { href: "/visitantes", label: "Visitantes", icon: UserPlus },
+  { href: "/cadastros", label: "Cadastros", icon: UserPlus },
   { href: "/acompanhamento", label: "Acomp.", icon: HeartHandshake },
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 }
 ];
@@ -113,7 +111,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-label="Principal"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white md:hidden"
       >
-        <div className="grid grid-cols-7">
+        <div className="grid grid-cols-6">
           {navigation.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;

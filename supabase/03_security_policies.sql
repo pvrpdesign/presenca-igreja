@@ -1,6 +1,8 @@
 alter table public.profiles enable row level security;
 alter table public.members enable row level security;
 alter table public.visitors enable row level security;
+alter table public.pastors enable row level security;
+alter table public.special_music enable row level security;
 alter table public.services enable row level security;
 alter table public.attendances enable row level security;
 alter table public.member_followups enable row level security;
@@ -74,6 +76,64 @@ on public.visitors
 for delete
 to authenticated
 using (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Reception and leadership can read pastors" on public.pastors;
+create policy "Reception and leadership can read pastors"
+on public.pastors
+for select
+to authenticated
+using (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Reception and leadership can insert pastors" on public.pastors;
+create policy "Reception and leadership can insert pastors"
+on public.pastors
+for insert
+to authenticated
+with check (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Reception and leadership can update pastors" on public.pastors;
+create policy "Reception and leadership can update pastors"
+on public.pastors
+for update
+to authenticated
+using (public.current_user_role() in ('recepcao', 'lideranca'))
+with check (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Leadership can delete pastors" on public.pastors;
+create policy "Leadership can delete pastors"
+on public.pastors
+for delete
+to authenticated
+using (public.current_user_role() = 'lideranca');
+
+drop policy if exists "Reception and leadership can read special music" on public.special_music;
+create policy "Reception and leadership can read special music"
+on public.special_music
+for select
+to authenticated
+using (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Reception and leadership can insert special music" on public.special_music;
+create policy "Reception and leadership can insert special music"
+on public.special_music
+for insert
+to authenticated
+with check (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Reception and leadership can update special music" on public.special_music;
+create policy "Reception and leadership can update special music"
+on public.special_music
+for update
+to authenticated
+using (public.current_user_role() in ('recepcao', 'lideranca'))
+with check (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Leadership can delete special music" on public.special_music;
+create policy "Leadership can delete special music"
+on public.special_music
+for delete
+to authenticated
+using (public.current_user_role() = 'lideranca');
 
 drop policy if exists "Reception and leadership can read services" on public.services;
 create policy "Reception and leadership can read services"
@@ -176,6 +236,8 @@ grant usage on schema public to anon, authenticated;
 grant select on public.profiles to authenticated;
 grant select, insert, update, delete on public.members to authenticated;
 grant select, insert, update, delete on public.visitors to authenticated;
+grant select, insert, update, delete on public.pastors to authenticated;
+grant select, insert, update, delete on public.special_music to authenticated;
 grant select, insert, update, delete on public.services to authenticated;
 grant select, insert, delete on public.attendances to authenticated;
 grant select, insert, update on public.member_followups to authenticated;

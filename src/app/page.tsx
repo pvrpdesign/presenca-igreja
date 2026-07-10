@@ -318,14 +318,8 @@ function DashboardContent() {
         tone: "bg-white text-ink hover:border-forest hover:text-forest"
       },
       {
-        href: "/membros",
-        label: "Cadastrar membro",
-        icon: UsersRound,
-        tone: "bg-white text-ink hover:border-forest hover:text-forest"
-      },
-      {
-        href: "/visitantes",
-        label: "Cadastrar visitante",
+        href: "/cadastros",
+        label: "Cadastros",
         icon: UserPlus,
         tone: "bg-white text-ink hover:border-forest hover:text-forest"
       },
@@ -349,7 +343,7 @@ function DashboardContent() {
     <div>
       <PageHeader eyebrow={roleLabel} title="Dashboard" />
 
-      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         {actions.map((action) => {
           const Icon = action.icon;
           return (

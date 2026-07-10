@@ -66,6 +66,27 @@ create table if not exists public.visitors (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.pastors (
+  id uuid primary key default gen_random_uuid(),
+  full_name text not null,
+  phone text,
+  district text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.special_music (
+  id uuid primary key default gen_random_uuid(),
+  performer_name text not null,
+  contact text,
+  church text,
+  visit_date date not null default current_date,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.services (
   id uuid primary key default gen_random_uuid(),
   service_date date not null,
@@ -122,6 +143,9 @@ create table if not exists public.visitor_followups (
 create index if not exists members_full_name_idx on public.members using gin (full_name gin_trgm_ops);
 create index if not exists members_status_idx on public.members (status);
 create index if not exists visitors_full_name_idx on public.visitors using gin (full_name gin_trgm_ops);
+create index if not exists pastors_full_name_idx on public.pastors using gin (full_name gin_trgm_ops);
+create index if not exists special_music_performer_name_idx on public.special_music using gin (performer_name gin_trgm_ops);
+create index if not exists special_music_visit_date_idx on public.special_music (visit_date desc);
 create index if not exists services_date_type_idx on public.services (service_date desc, service_type);
 create index if not exists attendances_service_idx on public.attendances (service_id);
 create index if not exists attendances_person_idx on public.attendances (person_type, person_id);

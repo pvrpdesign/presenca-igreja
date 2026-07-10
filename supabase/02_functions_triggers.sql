@@ -15,6 +15,16 @@ create trigger visitors_set_updated_at
 before update on public.visitors
 for each row execute function public.set_updated_at();
 
+drop trigger if exists pastors_set_updated_at on public.pastors;
+create trigger pastors_set_updated_at
+before update on public.pastors
+for each row execute function public.set_updated_at();
+
+drop trigger if exists special_music_set_updated_at on public.special_music;
+create trigger special_music_set_updated_at
+before update on public.special_music
+for each row execute function public.set_updated_at();
+
 drop trigger if exists member_followups_set_updated_at on public.member_followups;
 create trigger member_followups_set_updated_at
 before update on public.member_followups
