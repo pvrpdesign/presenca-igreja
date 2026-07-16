@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit3, FileDown, Save, Search, Trash2, UserPlus, X } from "lucide-react";
+import { Edit3, FileDown, MessageCircle, Save, Search, Trash2, UserPlus, X } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,6 +9,7 @@ import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
 import { supabase } from "@/lib/supabase";
 import type { Visitor } from "@/lib/types";
+import { getThankYouWhatsAppUrl } from "@/lib/whatsapp";
 
 const initialForm = {
   full_name: "",
@@ -386,7 +387,14 @@ function VisitorsContent() {
             {filteredVisitors.length === 0 ? (
               <p className="text-sm text-muted">Nenhum visitante encontrado.</p>
             ) : (
-              filteredVisitors.map((visitor) => (
+              filteredVisitors.map((visitor) => {
+                const whatsappUrl = getThankYouWhatsAppUrl(
+                  visitor.phone,
+                  visitor.full_name,
+                  "visitante"
+                );
+
+                return (
                 <div className="border-b border-line pb-3 last:border-0 last:pb-0" key={visitor.id}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -399,6 +407,17 @@ function VisitorsContent() {
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col gap-2">
+                      {whatsappUrl ? (
+                        <a
+                          className="primary-button min-h-9 px-3 py-2"
+                          href={whatsappUrl}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          <MessageCircle aria-hidden="true" size={15} />
+                          Agradecer
+                        </a>
+                      ) : null}
                       <button
                         className="secondary-button min-h-9 px-3 py-2"
                         onClick={() => startEdit(visitor)}
@@ -419,7 +438,8 @@ function VisitorsContent() {
                     </div>
                   </div>
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </aside>
