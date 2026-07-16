@@ -58,6 +58,7 @@ create table if not exists public.visitors (
   full_name text not null,
   phone text,
   location text,
+  denomination text,
   how_heard text,
   prayer_request text,
   notes text,

@@ -56,6 +56,8 @@ const initialForm = {
   ministry: "",
   status: "ativo" as MemberStatus,
   location: "",
+  denomination_choice: "adventista" as "adventista" | "outra",
+  denomination_other: "",
   how_heard: "",
   prayer_request: "",
   notes: "",
@@ -162,7 +164,7 @@ function UnifiedRegistryContent() {
       kind: "visitante",
       title: visitor.full_name,
       contact: visitor.phone ?? "Sem telefone",
-      detail: visitor.location || visitor.how_heard || "Sem cidade/bairro",
+      detail: `${visitor.location || "Sem cidade/bairro"} - ${visitor.denomination || "Denominação não informada"}`,
       created_at: visitor.created_at,
       raw: visitor
     }));
@@ -252,6 +254,14 @@ function UnifiedRegistryContent() {
         full_name: visitor.full_name,
         phone: visitor.phone ?? "",
         location: visitor.location ?? "",
+        denomination_choice:
+          !visitor.denomination || normalizeFilter(visitor.denomination) === "adventista"
+            ? "adventista"
+            : "outra",
+        denomination_other:
+          visitor.denomination && normalizeFilter(visitor.denomination) !== "adventista"
+            ? visitor.denomination
+            : "",
         how_heard: visitor.how_heard ?? "",
         prayer_request: visitor.prayer_request ?? "",
         notes: visitor.notes ?? ""
@@ -376,6 +386,10 @@ function UnifiedRegistryContent() {
         full_name: form.full_name.trim(),
         phone: normalizeBrazilPhone(form.phone) || null,
         location: form.location.trim() || null,
+        denomination:
+          form.denomination_choice === "adventista"
+            ? "Adventista"
+            : form.denomination_other.trim(),
         how_heard: form.how_heard.trim() || null,
         prayer_request: form.prayer_request.trim() || null,
         notes: form.notes.trim() || null
@@ -386,13 +400,13 @@ function UnifiedRegistryContent() {
         errorMessage = `${duplicate.full_name} já está cadastrado como visitante.`;
       } else if (editing?.kind === "visitante") {
         const { error } = await supabase.from("visitors").update(payload).eq("id", editing.id);
-        if (error) errorMessage = "Não foi possível atualizar o visitante.";
+        if (error) errorMessage = "Não foi possível atualizar o visitante. Rode o SQL 15 no Supabase.";
       } else {
         const { error } = await supabase.from("visitors").insert({
           ...payload,
           created_by: session?.user.id ?? null
         });
-        if (error) errorMessage = "Não foi possível cadastrar o visitante.";
+        if (error) errorMessage = "Não foi possível cadastrar o visitante. Rode o SQL 15 no Supabase.";
       }
     }
 
@@ -794,6 +808,36 @@ function UnifiedRegistryContent() {
                     value={form.location}
                   />
                 </Field>
+                <Field label="Denominação">
+                  <select
+                    className="field-input"
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        denomination_choice: event.target.value as "adventista" | "outra",
+                        denomination_other:
+                          event.target.value === "outra" ? form.denomination_other : ""
+                      })
+                    }
+                    value={form.denomination_choice}
+                  >
+                    <option value="adventista">Adventista</option>
+                    <option value="outra">Outra</option>
+                  </select>
+                </Field>
+                {form.denomination_choice === "outra" ? (
+                  <Field label="Qual denominação?">
+                    <input
+                      className="field-input"
+                      onChange={(event) =>
+                        setForm({ ...form, denomination_other: event.target.value })
+                      }
+                      placeholder="Digite o nome da denominação"
+                      required
+                      value={form.denomination_other}
+                    />
+                  </Field>
+                ) : null}
                 <Field label="Como conheceu a igreja">
                   <input
                     className="field-input"

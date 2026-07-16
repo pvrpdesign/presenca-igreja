@@ -15,6 +15,8 @@ const initialForm = {
   full_name: "",
   phone: "",
   location: "",
+  denomination_choice: "adventista" as "adventista" | "outra",
+  denomination_other: "",
   how_heard: "",
   prayer_request: "",
   notes: ""
@@ -77,6 +79,7 @@ function VisitorsContent() {
           visitor.full_name,
           visitor.phone,
           visitor.location,
+          visitor.denomination,
           visitor.how_heard,
           visitor.prayer_request,
           visitor.notes
@@ -99,6 +102,14 @@ function VisitorsContent() {
       full_name: visitor.full_name,
       phone: visitor.phone ?? "",
       location: visitor.location ?? "",
+      denomination_choice:
+        !visitor.denomination || normalizeFilter(visitor.denomination) === "adventista"
+          ? "adventista"
+          : "outra",
+      denomination_other:
+        visitor.denomination && normalizeFilter(visitor.denomination) !== "adventista"
+          ? visitor.denomination
+          : "",
       how_heard: visitor.how_heard ?? "",
       prayer_request: visitor.prayer_request ?? "",
       notes: visitor.notes ?? ""
@@ -116,6 +127,10 @@ function VisitorsContent() {
       full_name: form.full_name.trim(),
       phone: normalizeBrazilPhone(form.phone) || null,
       location: form.location.trim() || null,
+      denomination:
+        form.denomination_choice === "adventista"
+          ? "Adventista"
+          : form.denomination_other.trim(),
       how_heard: form.how_heard.trim() || null,
       prayer_request: form.prayer_request.trim() || null,
       notes: form.notes.trim() || null
@@ -151,8 +166,8 @@ function VisitorsContent() {
     if (error) {
       setMessage(
         editingVisitorId
-          ? "Não foi possível atualizar o visitante."
-          : "Não foi possível cadastrar o visitante."
+          ? "Não foi possível atualizar o visitante. Verifique se o SQL 15 foi executado no Supabase."
+          : "Não foi possível cadastrar o visitante. Verifique se o SQL 15 foi executado no Supabase."
       );
       return;
     }
@@ -211,6 +226,7 @@ function VisitorsContent() {
           Nome: visitor.full_name,
           WhatsApp: visitor.phone ?? "",
           "Cidade/bairro": visitor.location ?? "",
+          Denominação: visitor.denomination ?? "",
           "Como conheceu": visitor.how_heard ?? "",
           "Pedido de oração": visitor.prayer_request ?? "",
           Observações: visitor.notes ?? "",
@@ -290,6 +306,38 @@ function VisitorsContent() {
                 />
               </Field>
             </div>
+
+            <Field label="Denominação">
+              <select
+                className="field-input"
+                onChange={(event) =>
+                  setForm({
+                    ...form,
+                    denomination_choice: event.target.value as "adventista" | "outra",
+                    denomination_other:
+                      event.target.value === "outra" ? form.denomination_other : ""
+                  })
+                }
+                value={form.denomination_choice}
+              >
+                <option value="adventista">Adventista</option>
+                <option value="outra">Outra</option>
+              </select>
+            </Field>
+
+            {form.denomination_choice === "outra" ? (
+              <Field label="Qual denominação?">
+                <input
+                  className="field-input"
+                  onChange={(event) =>
+                    setForm({ ...form, denomination_other: event.target.value })
+                  }
+                  placeholder="Digite o nome da denominação"
+                  required
+                  value={form.denomination_other}
+                />
+              </Field>
+            ) : null}
 
             <Field label="Como conheceu a igreja">
               <input
@@ -404,6 +452,9 @@ function VisitorsContent() {
                       </p>
                       <p className="text-xs text-muted">
                         {visitor.how_heard || "Origem não informada"}
+                      </p>
+                      <p className="text-xs text-muted">
+                        Denominação: {visitor.denomination || "Não informada"}
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col gap-2">

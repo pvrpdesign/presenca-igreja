@@ -29,6 +29,7 @@ export type Visitor = {
   full_name: string;
   phone: string | null;
   location: string | null;
+  denomination: string | null;
   how_heard: string | null;
   prayer_request: string | null;
   notes: string | null;
@@ -144,6 +145,7 @@ export type Database = {
           full_name: string;
           phone?: string | null;
           location?: string | null;
+          denomination?: string | null;
           how_heard?: string | null;
           prayer_request?: string | null;
           notes?: string | null;

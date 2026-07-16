@@ -119,6 +119,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/06_lideranca_full_access.sql` para atualizar projetos antigos e liberar liderança em todo o sistema
 - `supabase/07_member_followups.sql` para criar o acompanhamento pastoral
 - `supabase/08_delete_permissions.sql` para liberar remoção de visitantes e presenças marcadas por engano
+- `supabase/15_visitor_denomination.sql` para adicionar a denominação ao cadastro de visitantes
 
 Eles criam:
 

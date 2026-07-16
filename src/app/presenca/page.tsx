@@ -41,6 +41,8 @@ type QuickVisitorForm = {
   full_name: string;
   phone: string;
   location: string;
+  denomination_choice: "adventista" | "outra";
+  denomination_other: string;
   how_heard: string;
   prayer_request: string;
   notes: string;
@@ -74,6 +76,8 @@ const emptyQuickVisitor: QuickVisitorForm = {
   full_name: "",
   phone: "",
   location: "",
+  denomination_choice: "adventista",
+  denomination_other: "",
   how_heard: "",
   prayer_request: "",
   notes: ""
@@ -806,6 +810,10 @@ function AttendanceContent() {
       full_name: quickVisitor.full_name.trim(),
       phone: normalizeBrazilPhone(quickVisitor.phone) || null,
       location: quickVisitor.location.trim() || null,
+      denomination:
+        quickVisitor.denomination_choice === "adventista"
+          ? "Adventista"
+          : quickVisitor.denomination_other.trim(),
       how_heard: quickVisitor.how_heard.trim() || null,
       prayer_request: quickVisitor.prayer_request.trim() || null,
       notes: quickVisitor.notes.trim() || null
@@ -850,7 +858,7 @@ function AttendanceContent() {
       .single();
 
     if (error || !data) {
-      setMessage("Não foi possível cadastrar o visitante.");
+      setMessage("Não foi possível cadastrar o visitante. Rode o SQL 15 no Supabase.");
       setIsMarking(false);
       return;
     }
@@ -1157,6 +1165,36 @@ function AttendanceContent() {
                     value={quickVisitor.location}
                   />
                 </Field>
+                <Field label="Denominação">
+                  <select
+                    className="field-input"
+                    onChange={(event) =>
+                      setQuickVisitor({
+                        ...quickVisitor,
+                        denomination_choice: event.target.value as "adventista" | "outra",
+                        denomination_other:
+                          event.target.value === "outra" ? quickVisitor.denomination_other : ""
+                      })
+                    }
+                    value={quickVisitor.denomination_choice}
+                  >
+                    <option value="adventista">Adventista</option>
+                    <option value="outra">Outra</option>
+                  </select>
+                </Field>
+                {quickVisitor.denomination_choice === "outra" ? (
+                  <Field label="Qual denominação?">
+                    <input
+                      className="field-input"
+                      onChange={(event) =>
+                        setQuickVisitor({ ...quickVisitor, denomination_other: event.target.value })
+                      }
+                      placeholder="Digite o nome da denominação"
+                      required
+                      value={quickVisitor.denomination_other}
+                    />
+                  </Field>
+                ) : null}
                 <Field label="Como conheceu">
                   <input
                     className="field-input"
