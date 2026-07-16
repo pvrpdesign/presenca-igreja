@@ -19,6 +19,7 @@ import { MetricCard, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDateBR, SERVICE_LABELS, todayInputValue } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
+import { getThankYouWhatsAppUrl } from "@/lib/whatsapp";
 import type {
   Attendance,
   FollowUpStatus,
@@ -32,7 +33,7 @@ import type {
 
 type FollowMember = Pick<Member, "id" | "full_name" | "phone" | "neighborhood" | "ministry">;
 type FollowVisitor = Pick<Visitor, "id" | "full_name" | "phone" | "location">;
-type ServiceSummary = Pick<Service, "id" | "service_date" | "service_type">;
+type ServiceSummary = Pick<Service, "id" | "service_date" | "service_type" | "title">;
 type AttendanceSummary = Pick<
   Attendance,
   "person_id" | "person_type" | "service_id" | "service_date" | "service_type"
@@ -150,6 +151,104 @@ function FollowUpContent() {
   const [needsSqlSetup, setNeedsSqlSetup] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [visitorServices, setVisitorServices] = useState<ServiceSummary[]>([]);
+  const [selectedVisitorServiceId, setSelectedVisitorServiceId] = useState("");
+  const [visitorsByService, setVisitorsByService] = useState<Record<string, FollowVisitor[]>>({});
+  const [isVisitorHistoryLoading, setIsVisitorHistoryLoading] = useState(true);
+  const [visitorHistoryMessage, setVisitorHistoryMessage] = useState("");
+
+  const loadVisitorsByService = useCallback(async () => {
+    setIsVisitorHistoryLoading(true);
+    setVisitorHistoryMessage("");
+
+    const { data: servicesData, error: servicesError } = await supabase
+      .from("services")
+      .select("id, service_date, service_type, title")
+      .lte("service_date", todayInputValue())
+      .order("service_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(24);
+
+    if (servicesError) {
+      setVisitorServices([]);
+      setVisitorsByService({});
+      setVisitorHistoryMessage("Não foi possível carregar os visitantes por culto.");
+      setIsVisitorHistoryLoading(false);
+      return;
+    }
+
+    const services = (servicesData ?? []) as ServiceSummary[];
+    setVisitorServices(services);
+    setSelectedVisitorServiceId((current) =>
+      services.some((service) => service.id === current) ? current : services[0]?.id ?? ""
+    );
+
+    if (services.length === 0) {
+      setVisitorsByService({});
+      setIsVisitorHistoryLoading(false);
+      return;
+    }
+
+    const serviceIds = services.map((service) => service.id);
+    const { data: attendanceData, error: attendanceError } = await supabase
+      .from("attendances")
+      .select("person_id, service_id")
+      .eq("person_type", "visitante")
+      .in("service_id", serviceIds);
+
+    if (attendanceError) {
+      setVisitorsByService({});
+      setVisitorHistoryMessage("Não foi possível carregar as presenças dos visitantes.");
+      setIsVisitorHistoryLoading(false);
+      return;
+    }
+
+    const attendances = (attendanceData ?? []) as Pick<Attendance, "person_id" | "service_id">[];
+    const visitorIds = [...new Set(attendances.map((attendance) => attendance.person_id))];
+
+    if (visitorIds.length === 0) {
+      setVisitorsByService({});
+      setIsVisitorHistoryLoading(false);
+      return;
+    }
+
+    const { data: visitorsData, error: visitorsError } = await supabase
+      .from("visitors")
+      .select("id, full_name, phone, location")
+      .in("id", visitorIds)
+      .order("full_name", { ascending: true });
+
+    if (visitorsError) {
+      setVisitorsByService({});
+      setVisitorHistoryMessage("Não foi possível carregar os dados dos visitantes.");
+      setIsVisitorHistoryLoading(false);
+      return;
+    }
+
+    const visitorById = new Map(
+      ((visitorsData ?? []) as FollowVisitor[]).map((visitor) => [visitor.id, visitor])
+    );
+    const visitorIdsByService = new Map<string, Set<string>>();
+
+    attendances.forEach((attendance) => {
+      const serviceVisitorIds = visitorIdsByService.get(attendance.service_id) ?? new Set<string>();
+      serviceVisitorIds.add(attendance.person_id);
+      visitorIdsByService.set(attendance.service_id, serviceVisitorIds);
+    });
+
+    setVisitorsByService(
+      Object.fromEntries(
+        services.map((service) => [
+          service.id,
+          [...(visitorIdsByService.get(service.id) ?? [])]
+            .map((visitorId) => visitorById.get(visitorId))
+            .filter((visitor): visitor is FollowVisitor => Boolean(visitor))
+            .sort((a, b) => a.full_name.localeCompare(b.full_name, "pt-BR"))
+        ])
+      )
+    );
+    setIsVisitorHistoryLoading(false);
+  }, []);
 
   const loadFollowUps = useCallback(async () => {
     setIsLoading(true);
@@ -382,7 +481,13 @@ function FollowUpContent() {
 
   useEffect(() => {
     loadFollowUps();
-  }, [loadFollowUps]);
+    loadVisitorsByService();
+  }, [loadFollowUps, loadVisitorsByService]);
+
+  const selectedVisitorService = visitorServices.find(
+    (service) => service.id === selectedVisitorServiceId
+  );
+  const selectedServiceVisitors = visitorsByService[selectedVisitorServiceId] ?? [];
 
   const stats = useMemo(() => {
     const accompanied = items.filter((item) => item.followUp?.status === "acompanhado").length;
@@ -543,7 +648,14 @@ function FollowUpContent() {
     <div>
       <PageHeader
         action={
-          <button className="secondary-button" onClick={loadFollowUps} type="button">
+          <button
+            className="secondary-button"
+            onClick={() => {
+              loadFollowUps();
+              loadVisitorsByService();
+            }}
+            type="button"
+          >
             <RefreshCw aria-hidden="true" size={17} />
             Atualizar
           </button>
@@ -570,6 +682,90 @@ function FollowUpContent() {
         <MetricCard icon={UsersRound} label="Membros" value={stats.members} />
         <MetricCard icon={UserRoundPlus} label="Visitantes" tone="wine" value={stats.visitors} />
         <MetricCard icon={AlertCircle} label="Com 3+ sábados" tone="gold" value={stats.critical} />
+      </section>
+
+      <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted">Recepção e boas-vindas</p>
+            <h2 className="mt-1 text-xl font-semibold text-ink">Visitantes por culto</h2>
+            <p className="mt-1 text-sm text-muted">
+              Selecione um culto para agradecer aos visitantes que estiveram presentes.
+            </p>
+          </div>
+          <StatusBadge tone={selectedServiceVisitors.length > 0 ? "success" : "neutral"}>
+            {selectedServiceVisitors.length} visitantes
+          </StatusBadge>
+        </div>
+
+        {visitorServices.length > 0 ? (
+          <label className="mb-4 block">
+            <span className="field-label">Culto</span>
+            <select
+              className="field-input"
+              onChange={(event) => setSelectedVisitorServiceId(event.target.value)}
+              value={selectedVisitorServiceId}
+            >
+              {visitorServices.map((service) => (
+                <option key={service.id} value={service.id}>
+                  {service.title || SERVICE_LABELS[service.service_type]} — {formatDateBR(service.service_date)}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        {visitorHistoryMessage ? (
+          <Notice title={visitorHistoryMessage} tone="warning" />
+        ) : isVisitorHistoryLoading ? (
+          <Notice title="Carregando visitantes dos cultos..." />
+        ) : !selectedVisitorService ? (
+          <Notice title="Nenhum culto encontrado" text="Cadastre um culto para iniciar o acompanhamento." />
+        ) : selectedServiceVisitors.length === 0 ? (
+          <Notice
+            title="Nenhum visitante neste culto"
+            text="Os visitantes aparecerão aqui depois que a presença for registrada."
+          />
+        ) : (
+          <div className="grid gap-3 lg:grid-cols-2">
+            {selectedServiceVisitors.map((visitor) => {
+              const whatsappUrl = getThankYouWhatsAppUrl(
+                visitor.phone,
+                visitor.full_name,
+                "visitante"
+              );
+
+              return (
+                <article className="rounded-card border border-line bg-paper p-4" key={visitor.id}>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink">{visitor.full_name}</p>
+                      <p className="mt-1 text-sm text-muted">
+                        {visitor.phone || "Sem telefone"} • {visitor.location || "Sem cidade/bairro"}
+                      </p>
+                    </div>
+                    {whatsappUrl ? (
+                      <a
+                        className="primary-button shrink-0"
+                        href={whatsappUrl}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        <MessageCircle aria-hidden="true" size={17} />
+                        Agradecer
+                      </a>
+                    ) : (
+                      <button className="secondary-button shrink-0" disabled type="button">
+                        <MessageCircle aria-hidden="true" size={17} />
+                        Sem WhatsApp
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {needsSqlSetup ? (
