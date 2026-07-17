@@ -1147,7 +1147,7 @@ function UnifiedRegistryContent() {
             ) : (
               filteredItems.map((item) => {
                 const whatsappUrl =
-                  item.kind === "visitante" || item.kind === "musica"
+                  item.kind === "visitante" || item.kind === "pastor" || item.kind === "musica"
                     ? getThankYouWhatsAppUrl(
                         item.contact,
                         item.title,

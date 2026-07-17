@@ -1,6 +1,6 @@
 import { normalizeBrazilPhone } from "@/lib/duplicates";
 
-type ThankYouMessageKind = "visitante" | "musica";
+type ThankYouMessageKind = "visitante" | "pastor" | "musica";
 
 export function getThankYouWhatsAppUrl(
   phone: string | null | undefined,
@@ -18,7 +18,9 @@ export function getThankYouWhatsAppUrl(
   const message =
     kind === "musica"
       ? `Olá, ${firstName}! Agradecemos por ter participado conosco com a música especial. Foi uma alegria receber você em nossa igreja! Que Deus abençoe sua vida e seu ministério.`
-      : `Olá, ${firstName}! Agradecemos por ter visitado nossa igreja. Foi uma alegria receber você! Esperamos vê-lo novamente. Que Deus abençoe sua vida.`;
+      : kind === "pastor"
+        ? `Olá, ${firstName}! Agradecemos por sua presença em nossa igreja e por compartilhar a Palavra de Deus conosco. Foi uma alegria receber você! Que Deus continue abençoando sua vida e seu ministério.`
+        : `Olá, ${firstName}! Agradecemos por ter visitado nossa igreja. Foi uma alegria receber você! Esperamos vê-lo novamente. Que Deus abençoe sua vida.`;
 
   return `https://wa.me/${internationalPhone}?text=${encodeURIComponent(message)}`;
 }
