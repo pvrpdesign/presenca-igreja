@@ -19,7 +19,13 @@ import {
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatDateBR, serviceTitle, SERVICE_LABELS, todayInputValue } from "@/lib/date";
+import {
+  formatDateBR,
+  inferServiceType,
+  serviceTitle,
+  SERVICE_LABELS,
+  todayInputValue
+} from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 import type { Attendance, Service, ServiceType } from "@/lib/types";
 
@@ -82,15 +88,28 @@ function dateInputDaysAgo(days: number) {
 }
 
 function initialForm(): ServiceForm {
+  const serviceDate = todayInputValue();
+
   return {
-    service_date: todayInputValue(),
-    service_type: "sabado",
+    service_date: serviceDate,
+    service_type: inferServiceType(serviceDate),
     title: ""
   };
 }
 
 function serviceDisplayTitle(service: Pick<Service, "service_date" | "service_type" | "title">) {
   return service.title || serviceTitle(service.service_date, service.service_type);
+}
+
+function weekdayLabel(dateValue: string) {
+  if (!dateValue) return "";
+
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const label = new Date(year, month - 1, day, 12).toLocaleDateString("pt-BR", {
+    weekday: "long"
+  });
+
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export default function ServicesPage() {
@@ -374,11 +393,25 @@ function ServicesContent() {
               <Field label="Data do culto">
                 <input
                   className="field-input"
-                  onChange={(event) => setForm({ ...form, service_date: event.target.value })}
+                  onChange={(event) => {
+                    const serviceDate = event.target.value;
+                    setForm({
+                      ...form,
+                      service_date: serviceDate,
+                      service_type: serviceDate
+                        ? inferServiceType(serviceDate)
+                        : form.service_type
+                    });
+                  }}
                   required
                   type="date"
                   value={form.service_date}
                 />
+                {form.service_date ? (
+                  <span className="mt-1 block text-xs text-muted">
+                    Dia identificado: {weekdayLabel(form.service_date)}
+                  </span>
+                ) : null}
               </Field>
 
               <Field label="Tipo de culto">
