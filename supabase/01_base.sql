@@ -93,10 +93,14 @@ create table if not exists public.services (
   service_date date not null,
   service_type public.service_type not null,
   title text,
+  checkin_token uuid not null default gen_random_uuid(),
+  checkin_enabled boolean not null default true,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   constraint services_unique_date_type unique (service_date, service_type)
 );
+
+create unique index if not exists services_checkin_token_idx on public.services (checkin_token);
 
 create table if not exists public.attendances (
   id uuid primary key default gen_random_uuid(),

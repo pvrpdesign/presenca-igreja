@@ -121,6 +121,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/08_delete_permissions.sql` para liberar remoção de visitantes e presenças marcadas por engano
 - `supabase/15_visitor_denomination.sql` para adicionar a denominação ao cadastro de visitantes
 - `supabase/16_pastor_speaker_role.sql` para permitir escolher entre Pastor e Pregador
+- `supabase/17_member_qr_checkin.sql` para ativar o check-in de membros por QR Code
 
 Eles criam:
 

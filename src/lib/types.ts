@@ -66,6 +66,8 @@ export type Service = {
   service_date: string;
   service_type: ServiceType;
   title: string | null;
+  checkin_token: string;
+  checkin_enabled: boolean;
   created_by: string | null;
   created_at: string;
 };
@@ -195,6 +197,8 @@ export type Database = {
           service_date: string;
           service_type: ServiceType;
           title?: string | null;
+          checkin_token?: string;
+          checkin_enabled?: boolean;
           created_by?: string | null;
           created_at?: string;
         };
@@ -254,7 +258,16 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      get_member_checkin_service: {
+        Args: { p_token: string };
+        Returns: Record<string, string | boolean | null>;
+      };
+      register_member_self_checkin: {
+        Args: { p_phone: string; p_token: string };
+        Returns: Record<string, string | boolean | null>;
+      };
+    };
     Enums: {
       user_role: UserRole;
       member_status: MemberStatus;

@@ -2,9 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
 import {
   CalendarCheck,
+  Copy,
+  Download,
   Edit3,
+  ExternalLink,
+  QrCode,
   RefreshCw,
   Save,
   Search,
@@ -22,7 +27,14 @@ type ServiceTypeFilter = "todos" | ServiceType;
 
 type ServiceRow = Pick<
   Service,
-  "id" | "service_date" | "service_type" | "title" | "created_by" | "created_at"
+  | "id"
+  | "service_date"
+  | "service_type"
+  | "title"
+  | "checkin_token"
+  | "checkin_enabled"
+  | "created_by"
+  | "created_at"
 >;
 
 type ServiceStats = {
@@ -102,6 +114,12 @@ function ServicesContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
+  const [qrDialog, setQrDialog] = useState<{
+    service: ServiceRow;
+    url: string;
+    imageUrl: string;
+  } | null>(null);
+  const [isGeneratingQr, setIsGeneratingQr] = useState(false);
 
   const totalAttendances = useMemo(
     () => Object.values(statsByService).reduce((total, stats) => total + stats.total, 0),
@@ -132,7 +150,9 @@ function ServicesContent() {
 
     let query = supabase
       .from("services")
-      .select("id, service_date, service_type, title, created_by, created_at")
+      .select(
+        "id, service_date, service_type, title, checkin_token, checkin_enabled, created_by, created_at"
+      )
       .gte("service_date", startDate)
       .lte("service_date", endDate);
 
@@ -148,7 +168,7 @@ function ServicesContent() {
     if (error) {
       setServices([]);
       setStatsByService({});
-      setMessage("Não foi possível carregar os cultos.");
+      setMessage("Não foi possível carregar os cultos. Rode o SQL 17 no Supabase.");
       setIsLoading(false);
       return;
     }
@@ -279,6 +299,38 @@ function ServicesContent() {
     setStartDate(dateInputDaysAgo(60));
     setEndDate(todayInputValue());
     setServiceTypeFilter("todos");
+  }
+
+  async function openQrCode(service: ServiceRow) {
+    setIsGeneratingQr(true);
+    setMessage("");
+
+    try {
+      const url = `${window.location.origin}/check-in/${service.checkin_token}`;
+      const imageUrl = await QRCode.toDataURL(url, {
+        width: 720,
+        margin: 2,
+        color: { dark: "#173f35", light: "#ffffff" },
+        errorCorrectionLevel: "H"
+      });
+
+      setQrDialog({ service, url, imageUrl });
+    } catch {
+      setMessage("Não foi possível gerar o QR Code deste culto.");
+    } finally {
+      setIsGeneratingQr(false);
+    }
+  }
+
+  async function copyCheckinLink() {
+    if (!qrDialog) return;
+
+    try {
+      await navigator.clipboard.writeText(qrDialog.url);
+      setMessage("Link do check-in copiado.");
+    } catch {
+      setMessage("Não foi possível copiar o link. Use o botão Abrir check-in.");
+    }
   }
 
   return (
@@ -473,10 +525,19 @@ function ServicesContent() {
                         </div>
                       </div>
 
-                      <div className="grid gap-2 sm:grid-cols-3 xl:min-w-[360px]">
+                      <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[420px] xl:grid-cols-4">
                         <Link className="primary-button min-h-10 px-3 py-2" href={presenceHref}>
                           Presença
                         </Link>
+                        <button
+                          className="secondary-button min-h-10 px-3 py-2"
+                          disabled={isGeneratingQr}
+                          onClick={() => openQrCode(service)}
+                          type="button"
+                        >
+                          <QrCode aria-hidden="true" size={16} />
+                          QR Code
+                        </button>
                         <button
                           className="secondary-button min-h-10 px-3 py-2"
                           onClick={() => startEdit(service)}
@@ -509,6 +570,84 @@ function ServicesContent() {
           )}
         </section>
       </div>
+
+      {qrDialog ? (
+        <div
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4"
+          role="dialog"
+        >
+          <section className="max-h-[95vh] w-full max-w-lg overflow-y-auto rounded-card bg-white p-5 shadow-soft sm:p-6">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase text-forest">Check-in de membros</p>
+                <h2 className="mt-1 text-xl font-semibold text-ink">
+                  {serviceDisplayTitle(qrDialog.service)}
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  {formatDateBR(qrDialog.service.service_date)} • válido somente no dia do culto
+                </p>
+              </div>
+              <button
+                aria-label="Fechar QR Code"
+                className="secondary-button min-h-10 px-3 py-2"
+                onClick={() => setQrDialog(null)}
+                type="button"
+              >
+                <X aria-hidden="true" size={18} />
+              </button>
+            </div>
+
+            <div className="mx-auto max-w-sm rounded-card border border-line bg-white p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                alt={`QR Code para ${serviceDisplayTitle(qrDialog.service)}`}
+                className="h-auto w-full"
+                src={qrDialog.imageUrl}
+              />
+            </div>
+
+            <p className="mt-4 break-all rounded-card bg-paper p-3 text-xs leading-5 text-muted">
+              {qrDialog.url}
+            </p>
+
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <a
+                className="primary-button min-h-10 px-3 py-2"
+                download={`qr-checkin-${qrDialog.service.service_date}.png`}
+                href={qrDialog.imageUrl}
+              >
+                <Download aria-hidden="true" size={16} />
+                Baixar
+              </a>
+              <button
+                className="secondary-button min-h-10 px-3 py-2"
+                onClick={copyCheckinLink}
+                type="button"
+              >
+                <Copy aria-hidden="true" size={16} />
+                Copiar link
+              </button>
+              <a
+                className="secondary-button min-h-10 px-3 py-2"
+                href={qrDialog.url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <ExternalLink aria-hidden="true" size={16} />
+                Abrir
+              </a>
+            </div>
+
+            <div className="mt-4">
+              <Notice
+                text="O membro informa o WhatsApp usado no cadastro. Se for encontrado e estiver ativo, a presença é marcada automaticamente."
+                title="Como funciona"
+              />
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
