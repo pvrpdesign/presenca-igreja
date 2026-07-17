@@ -26,7 +26,14 @@ import {
   type MemberImportRow
 } from "@/lib/memberImport";
 import { supabase } from "@/lib/supabase";
-import type { Member, MemberStatus, Pastor, SpecialMusic, Visitor } from "@/lib/types";
+import type {
+  Member,
+  MemberStatus,
+  Pastor,
+  SpeakerRole,
+  SpecialMusic,
+  Visitor
+} from "@/lib/types";
 import { getThankYouWhatsAppUrl } from "@/lib/whatsapp";
 
 type RegistryKind = "membro" | "visitante" | "pastor" | "musica";
@@ -44,7 +51,7 @@ type RegistryItem = {
 const kindOptions: { value: RegistryKind; label: string }[] = [
   { value: "membro", label: "Membro" },
   { value: "visitante", label: "Visitante" },
-  { value: "pastor", label: "Pastor" },
+  { value: "pastor", label: "Pastor/Pregador" },
   { value: "musica", label: "Música Especial" }
 ];
 
@@ -62,6 +69,7 @@ const initialForm = {
   prayer_request: "",
   notes: "",
   district: "",
+  speaker_role: "pastor" as SpeakerRole,
   performer_name: "",
   contact: "",
   church: "",
@@ -173,7 +181,9 @@ function UnifiedRegistryContent() {
       kind: "pastor",
       title: pastor.full_name,
       contact: pastor.phone ?? "Sem telefone",
-      detail: pastor.district || "Sem distrito",
+      detail: `${pastor.speaker_role === "pregador" ? "Pregador" : "Pastor"} - ${
+        pastor.district || "Sem distrito"
+      }`,
       created_at: pastor.created_at,
       raw: pastor
     }));
@@ -275,7 +285,8 @@ function UnifiedRegistryContent() {
         kind: "pastor",
         full_name: pastor.full_name,
         phone: pastor.phone ?? "",
-        district: pastor.district ?? ""
+        district: pastor.district ?? "",
+        speaker_role: pastor.speaker_role ?? "pastor"
       });
     }
 
@@ -414,20 +425,21 @@ function UnifiedRegistryContent() {
       const payload = {
         full_name: form.full_name.trim(),
         phone: normalizeBrazilPhone(form.phone) || null,
-        district: form.district.trim() || null
+        district: form.district.trim() || null,
+        speaker_role: form.speaker_role
       };
 
       if (hasDuplicatePastor(payload)) {
-        errorMessage = "Possível duplicidade: este pastor já está cadastrado.";
+        errorMessage = "Possível duplicidade: este pastor ou pregador já está cadastrado.";
       } else if (editing?.kind === "pastor") {
         const { error } = await supabase.from("pastors").update(payload).eq("id", editing.id);
-        if (error) errorMessage = "Não foi possível atualizar o pastor. Rode o SQL 13 no Supabase.";
+        if (error) errorMessage = "Não foi possível atualizar. Rode o SQL 16 no Supabase.";
       } else {
         const { error } = await supabase.from("pastors").insert({
           ...payload,
           created_by: session?.user.id ?? null
         });
-        if (error) errorMessage = "Não foi possível cadastrar o pastor. Rode o SQL 13 no Supabase.";
+        if (error) errorMessage = "Não foi possível cadastrar. Rode o SQL 16 no Supabase.";
       }
     }
 
@@ -748,13 +760,27 @@ function UnifiedRegistryContent() {
                     />
                   </Field>
                   {form.kind === "pastor" ? (
-                    <Field label="Distrito">
-                      <input
-                        className="field-input"
-                        onChange={(event) => setForm({ ...form, district: event.target.value })}
-                        value={form.district}
-                      />
-                    </Field>
+                    <>
+                      <Field label="Função">
+                        <select
+                          className="field-input"
+                          onChange={(event) =>
+                            setForm({ ...form, speaker_role: event.target.value as SpeakerRole })
+                          }
+                          value={form.speaker_role}
+                        >
+                          <option value="pastor">Pastor</option>
+                          <option value="pregador">Pregador</option>
+                        </select>
+                      </Field>
+                      <Field label="Distrito">
+                        <input
+                          className="field-input"
+                          onChange={(event) => setForm({ ...form, district: event.target.value })}
+                          value={form.district}
+                        />
+                      </Field>
+                    </>
                   ) : null}
                 </div>
               </>

@@ -120,6 +120,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/07_member_followups.sql` para criar o acompanhamento pastoral
 - `supabase/08_delete_permissions.sql` para liberar remoção de visitantes e presenças marcadas por engano
 - `supabase/15_visitor_denomination.sql` para adicionar a denominação ao cadastro de visitantes
+- `supabase/16_pastor_speaker_role.sql` para permitir escolher entre Pastor e Pregador
 
 Eles criam:
 

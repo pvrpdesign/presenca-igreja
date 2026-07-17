@@ -1,5 +1,6 @@
 export type UserRole = "recepcao" | "lideranca";
 export type MemberStatus = "ativo" | "afastado" | "transferido";
+export type SpeakerRole = "pastor" | "pregador";
 export type ServiceType = "quarta" | "sabado" | "especial";
 export type PersonType = "membro" | "visitante" | "pastor" | "musica";
 export type FollowUpStatus = "pendente" | "acompanhado" | "removido";
@@ -43,6 +44,7 @@ export type Pastor = {
   full_name: string;
   phone: string | null;
   district: string | null;
+  speaker_role: SpeakerRole;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -163,6 +165,7 @@ export type Database = {
           full_name: string;
           phone?: string | null;
           district?: string | null;
+          speaker_role?: SpeakerRole;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;

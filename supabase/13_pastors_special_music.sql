@@ -3,6 +3,7 @@ create table if not exists public.pastors (
   full_name text not null,
   phone text,
   district text,
+  speaker_role text not null default 'pastor' check (speaker_role in ('pastor', 'pregador')),
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
