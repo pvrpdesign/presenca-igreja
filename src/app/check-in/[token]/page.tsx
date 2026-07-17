@@ -1,20 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { CalendarCheck, CheckCircle2, Church, LoaderCircle, Phone, ShieldCheck } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, Church, LoaderCircle, Phone, ShieldCheck } from "lucide-react";
 import { useParams } from "next/navigation";
 import { Field, Notice } from "@/components/ui";
-import { formatDateBR, SERVICE_LABELS } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
-import type { ServiceType } from "@/lib/types";
-
-type ServiceInfo = {
-  status: string;
-  title?: string;
-  service_date?: string;
-  service_type?: ServiceType;
-  is_open?: boolean;
-};
 
 type CheckinResult = {
   status: string;
@@ -62,6 +52,30 @@ function checkinMessage(result: CheckinResult) {
     };
   }
 
+  if (result.status === "closed") {
+    return {
+      title: "Check-in fechado",
+      text: "Este QR Code funciona somente no dia do culto. Procure a recepção se precisar de ajuda.",
+      tone: "warning" as const
+    };
+  }
+
+  if (result.status === "invalid") {
+    return {
+      title: "QR Code inválido",
+      text: "Peça à recepção o QR Code correto deste culto.",
+      tone: "warning" as const
+    };
+  }
+
+  if (result.status === "error") {
+    return {
+      title: "A conexão demorou mais que o esperado",
+      text: "Confira sua internet e toque novamente em Confirmar minha presença.",
+      tone: "warning" as const
+    };
+  }
+
   return {
     title: "Check-in indisponível",
     text: "Procure a recepção para marcar sua presença.",
@@ -72,41 +86,31 @@ function checkinMessage(result: CheckinResult) {
 export default function MemberCheckinPage() {
   const params = useParams<{ token: string }>();
   const token = params.token;
-  const [service, setService] = useState<ServiceInfo | null>(null);
   const [phone, setPhone] = useState("");
   const [result, setResult] = useState<CheckinResult | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const loadService = useCallback(async () => {
-    setIsLoading(true);
-    const { data, error } = await supabase.rpc("get_member_checkin_service", {
-      p_token: token
-    });
-
-    setService(error ? { status: "invalid" } : (data as ServiceInfo));
-    setIsLoading(false);
-  }, [token]);
-
-  useEffect(() => {
-    loadService();
-  }, [loadService]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setResult(null);
     setIsSubmitting(true);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
 
-    const { data, error } = await supabase.rpc("register_member_self_checkin", {
-      p_token: token,
-      p_phone: phone
-    });
+    try {
+      const { data, error } = await supabase.rpc("register_member_self_checkin", {
+        p_token: token,
+        p_phone: phone
+      }).abortSignal(controller.signal);
 
-    setResult(error ? { status: "error" } : (data as CheckinResult));
-    setIsSubmitting(false);
+      setResult(error ? { status: "error" } : (data as CheckinResult));
+    } catch {
+      setResult({ status: "error" });
+    } finally {
+      window.clearTimeout(timeoutId);
+      setIsSubmitting(false);
+    }
   }
-
-  const isValidService = service?.status === "ok";
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-paper px-4 py-8">
@@ -123,79 +127,46 @@ export default function MemberCheckinPage() {
         </div>
 
         <section className="rounded-card border border-line bg-white p-5 shadow-soft">
-          {isLoading ? (
-            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted">
-              <LoaderCircle className="animate-spin" size={20} />
-              Abrindo check-in...
-            </div>
-          ) : !isValidService ? (
-            <Notice
-              title="QR Code inválido"
-              text="Peça à recepção o QR Code correto deste culto."
-              tone="warning"
-            />
-          ) : (
-            <>
-              <div className="mb-5 rounded-card border border-forest/20 bg-forest/5 p-4">
-                <div className="flex items-start gap-3">
-                  <CalendarCheck className="mt-0.5 shrink-0 text-forest" size={20} />
-                  <div>
-                    <h2 className="font-semibold text-ink">{service.title}</h2>
-                    <p className="mt-1 text-sm text-muted">
-                      {service.service_type ? SERVICE_LABELS[service.service_type] : "Culto"}
-                      {service.service_date ? ` • ${formatDateBR(service.service_date)}` : ""}
-                    </p>
-                  </div>
-                </div>
+          {result?.status === "registered" || result?.status === "already_registered" ? (
+            <div className="text-center">
+              <CheckCircle2 className="mx-auto text-forest" size={52} />
+              <div className="mt-4">
+                <Notice {...checkinMessage(result)} />
               </div>
-
-              {!service.is_open ? (
-                <Notice
-                  title="Check-in fechado"
-                  text="Este QR Code funciona somente no dia do culto. Procure a recepção se precisar de ajuda."
-                  tone="warning"
-                />
-              ) : result?.status === "registered" || result?.status === "already_registered" ? (
-                <div className="text-center">
-                  <CheckCircle2 className="mx-auto text-forest" size={52} />
-                  <div className="mt-4">
-                    <Notice {...checkinMessage(result)} />
-                  </div>
+            </div>
+          ) : (
+            <form className="grid gap-4" onSubmit={handleSubmit}>
+              <Field label="Seu WhatsApp com DDD">
+                <div className="relative">
+                  <Phone
+                    aria-hidden="true"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+                    size={18}
+                  />
+                  <input
+                    autoComplete="tel"
+                    autoFocus
+                    className="field-input pl-10"
+                    inputMode="tel"
+                    onChange={(event) => setPhone(event.target.value)}
+                    placeholder="Ex.: (71) 99999-9999"
+                    required
+                    value={phone}
+                  />
                 </div>
-              ) : (
-                <form className="grid gap-4" onSubmit={handleSubmit}>
-                  <Field label="Seu WhatsApp com DDD">
-                    <div className="relative">
-                      <Phone
-                        aria-hidden="true"
-                        className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
-                        size={18}
-                      />
-                      <input
-                        autoComplete="tel"
-                        className="field-input pl-10"
-                        inputMode="tel"
-                        onChange={(event) => setPhone(event.target.value)}
-                        placeholder="Ex.: (71) 99999-9999"
-                        required
-                        value={phone}
-                      />
-                    </div>
-                  </Field>
+              </Field>
 
-                  {result ? <Notice {...checkinMessage(result)} /> : null}
+              {result ? <Notice {...checkinMessage(result)} /> : null}
 
-                  <button className="primary-button w-full" disabled={isSubmitting} type="submit">
-                    {isSubmitting ? (
-                      <LoaderCircle className="animate-spin" size={18} />
-                    ) : (
-                      <CheckCircle2 size={18} />
-                    )}
-                    {isSubmitting ? "Confirmando..." : "Confirmar minha presença"}
-                  </button>
-                </form>
-              )}
-            </>
+              <button className="primary-button w-full" disabled={isSubmitting} type="submit">
+                {isSubmitting ? (
+                  <LoaderCircle className="animate-spin" size={18} />
+                ) : (
+                  <CheckCircle2 size={18} />
+                )}
+                {isSubmitting ? "Confirmando..." : "Confirmar minha presença"}
+              </button>
+            </form>
           )}
         </section>
 
