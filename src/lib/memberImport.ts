@@ -36,6 +36,9 @@ const STATUS_ALIASES: Record<string, MemberStatus> = {
   transferida: "transferido"
 };
 
+const MAX_IMPORT_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_IMPORT_ROWS = 5000;
+
 function normalizeKey(value: string) {
   return value
     .normalize("NFD")
@@ -144,20 +147,58 @@ function tableLinesToRows(lines: string[]) {
 }
 
 async function readSpreadsheetRows(file: File) {
-  const XLSX = await import("xlsx");
+  const { Workbook } = await import("exceljs");
+  const workbook = new Workbook();
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
-  const sheetName = workbook.SheetNames[0];
+  await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  const worksheet = workbook.worksheets[0];
 
-  if (!sheetName) {
+  if (!worksheet) {
     throw new Error("A planilha está vazia.");
   }
 
-  const sheet = workbook.Sheets[sheetName];
-  return XLSX.utils.sheet_to_json<RawImportRow>(sheet, {
-    defval: "",
-    raw: false
+  let headerRowNumber = 0;
+  let headers: string[] = [];
+
+  worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+    if (headerRowNumber) return;
+
+    const currentHeaders = Array.from({ length: row.cellCount }, (_, index) =>
+      row.getCell(index + 1).text.trim()
+    );
+
+    if (currentHeaders.some((header) => findField(header) === "full_name")) {
+      headerRowNumber = rowNumber;
+      headers = currentHeaders;
+    }
   });
+
+  if (!headerRowNumber) {
+    throw new Error("Não encontrei a coluna Nome no arquivo.");
+  }
+
+  if (worksheet.rowCount - headerRowNumber > MAX_IMPORT_ROWS) {
+    throw new Error(`A planilha pode ter no máximo ${MAX_IMPORT_ROWS} linhas.`);
+  }
+
+  const rows: RawImportRow[] = [];
+
+  for (let rowNumber = headerRowNumber + 1; rowNumber <= worksheet.rowCount; rowNumber += 1) {
+    const row = worksheet.getRow(rowNumber);
+    const parsedRow: RawImportRow = {};
+    let hasContent = false;
+
+    headers.forEach((header, index) => {
+      if (!header) return;
+      const value = row.getCell(index + 1).text.trim();
+      if (value) hasContent = true;
+      parsedRow[header] = value;
+    });
+
+    if (hasContent) rows.push(parsedRow);
+  }
+
+  return rows;
 }
 
 type PdfTextItem = {
@@ -222,15 +263,35 @@ async function readPdfRows(file: File) {
 export async function readMemberImportFile(file: File) {
   const extension = file.name.split(".").pop()?.toLowerCase();
 
-  if (extension === "pdf") {
-    return readPdfRows(file);
+  if (file.size > MAX_IMPORT_FILE_SIZE) {
+    throw new Error("O arquivo pode ter no máximo 10 MB.");
   }
 
-  if (["csv", "xls", "xlsx", "txt"].includes(extension ?? "")) {
+  if (extension === "pdf") {
+    const rows = await readPdfRows(file);
+    if (rows.length > MAX_IMPORT_ROWS) {
+      throw new Error(`O arquivo pode ter no máximo ${MAX_IMPORT_ROWS} registros.`);
+    }
+    return rows;
+  }
+
+  if (extension === "xlsx") {
     return readSpreadsheetRows(file);
   }
 
-  throw new Error("Use um arquivo Excel, CSV ou PDF.");
+  if (["csv", "txt"].includes(extension ?? "")) {
+    const rows = tableLinesToRows((await file.text()).split(/\r?\n/));
+    if (rows.length > MAX_IMPORT_ROWS) {
+      throw new Error(`O arquivo pode ter no máximo ${MAX_IMPORT_ROWS} registros.`);
+    }
+    return rows;
+  }
+
+  if (extension === "xls") {
+    throw new Error("O formato .xls é antigo. Abra o arquivo no Excel e salve como .xlsx.");
+  }
+
+  throw new Error("Use um arquivo XLSX, CSV, TXT ou PDF.");
 }
 
 export function prepareMemberImportRows(

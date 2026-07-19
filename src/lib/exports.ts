@@ -19,15 +19,47 @@ export function datedFileName(prefix: string, extension: string) {
 }
 
 export async function downloadExcelWorkbook(fileName: string, sheets: ExcelSheet[]) {
-  const XLSX = await import("xlsx");
-  const workbook = XLSX.utils.book_new();
+  const { Workbook } = await import("exceljs");
+  const workbook = new Workbook();
+  const usedNames = new Set<string>();
 
   sheets.forEach((sheet) => {
-    const worksheet = XLSX.utils.json_to_sheet(sheet.rows);
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheet.name.slice(0, 31));
+    const baseName = sheet.name.replace(/[\\/*?:[\]]/g, " ").trim().slice(0, 31) || "Planilha";
+    let worksheetName = baseName;
+    let suffix = 2;
+
+    while (usedNames.has(worksheetName)) {
+      const suffixText = ` ${suffix}`;
+      worksheetName = `${baseName.slice(0, 31 - suffixText.length)}${suffixText}`;
+      suffix += 1;
+    }
+
+    usedNames.add(worksheetName);
+    const worksheet = workbook.addWorksheet(worksheetName);
+    const headers = [...new Set(sheet.rows.flatMap((row) => Object.keys(row)))];
+
+    if (headers.length === 0) return;
+
+    worksheet.addRow(headers);
+    sheet.rows.forEach((row) => {
+      worksheet.addRow(headers.map((header) => row[header] ?? null));
+    });
+
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.views = [{ state: "frozen", ySplit: 1 }];
+    worksheet.columns.forEach((column, index) => {
+      const values = [headers[index], ...sheet.rows.map((row) => String(row[headers[index]] ?? ""))];
+      column.width = Math.min(45, Math.max(12, ...values.map((value) => value.length + 2)));
+    });
   });
 
-  XLSX.writeFile(workbook, fileName);
+  const buffer = await workbook.xlsx.writeBuffer();
+  downloadBlob(
+    fileName,
+    new Blob([new Uint8Array(buffer)], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    })
+  );
 }
 
 function escapePdfText(value: string) {

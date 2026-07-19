@@ -520,7 +520,7 @@ function MembersContent() {
                   <h2 className="text-base font-semibold text-ink">Importar membros em massa</h2>
                 </div>
                 <p className="text-sm leading-6 text-muted">
-                  Envie Excel, CSV ou PDF com colunas como Nome, Telefone, Bairro, Ministério,
+                  Envie XLSX, CSV, TXT ou PDF com colunas como Nome, Telefone, Bairro, Ministério,
                   Status e Observações.
                 </p>
               </div>
@@ -528,7 +528,7 @@ function MembersContent() {
                 <Upload aria-hidden="true" size={18} />
                 {isReadingImport ? "Lendo..." : "Escolher arquivo"}
                 <input
-                  accept=".xlsx,.xls,.csv,.txt,.pdf"
+                  accept=".xlsx,.csv,.txt,.pdf"
                   className="sr-only"
                   disabled={isReadingImport || isImporting}
                   onChange={handleImportFileChange}
