@@ -42,6 +42,7 @@ type ReceptionGuest = {
   fullName: string;
   contact: string | null;
   detail: string | null;
+  kindLabel: string;
   followedUpAt: string | null;
 };
 type ServiceSummary = Pick<Service, "id" | "service_date" | "service_type" | "title">;
@@ -100,6 +101,7 @@ type FollowUpItem = {
 };
 
 type FilterMode = "pendentes" | "todos" | "acompanhados" | "criticos" | "membros" | "visitantes";
+type GuestFilterMode = "todos" | "pendentes" | "concluidos" | "visitantes" | "pastores" | "musicas";
 
 const filterOptions: { label: string; value: FilterMode }[] = [
   { label: "Pendentes", value: "pendentes" },
@@ -109,6 +111,23 @@ const filterOptions: { label: string; value: FilterMode }[] = [
   { label: "Visitantes", value: "visitantes" },
   { label: "Alertas de ausência", value: "criticos" }
 ];
+
+const guestFilterOptions: { label: string; value: GuestFilterMode }[] = [
+  { label: "Todos", value: "todos" },
+  { label: "Pendentes", value: "pendentes" },
+  { label: "Concluídos", value: "concluidos" },
+  { label: "Visitantes", value: "visitantes" },
+  { label: "Pastores/Pregadores", value: "pastores" },
+  { label: "Música Especial", value: "musicas" }
+];
+
+function normalizeSearch(value: string | null) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -169,6 +188,8 @@ function FollowUpContent() {
   const [visitorServices, setVisitorServices] = useState<ServiceSummary[]>([]);
   const [selectedVisitorServiceId, setSelectedVisitorServiceId] = useState("");
   const [guestsByService, setGuestsByService] = useState<Record<string, ReceptionGuest[]>>({});
+  const [guestFilter, setGuestFilter] = useState<GuestFilterMode>("pendentes");
+  const [guestSearch, setGuestSearch] = useState("");
   const [isVisitorHistoryLoading, setIsVisitorHistoryLoading] = useState(true);
   const [visitorHistoryMessage, setVisitorHistoryMessage] = useState("");
 
@@ -249,7 +270,7 @@ function FollowUpContent() {
 
     const [visitorsResponse, pastorsResponse, musicResponse] = await Promise.all([
       visitorIds.length ? supabase.from("visitors").select("id, full_name, phone, location").in("id", visitorIds) : Promise.resolve({ data: [], error: null }),
-      pastorIds.length ? supabase.from("pastors").select("id, full_name, phone, district").in("id", pastorIds) : Promise.resolve({ data: [], error: null }),
+      pastorIds.length ? supabase.from("pastors").select("id, full_name, phone, district, speaker_role").in("id", pastorIds) : Promise.resolve({ data: [], error: null }),
       musicIds.length ? supabase.from("special_music").select("id, performer_name, contact, church").in("id", musicIds) : Promise.resolve({ data: [], error: null })
     ]);
 
@@ -263,7 +284,7 @@ function FollowUpContent() {
     const visitorById = new Map(
       ((visitorsResponse.data ?? []) as FollowVisitor[]).map((visitor) => [visitor.id, visitor])
     );
-    const pastorById = new Map(((pastorsResponse.data ?? []) as Pick<Pastor, "id" | "full_name" | "phone" | "district">[]).map((pastor) => [pastor.id, pastor]));
+    const pastorById = new Map(((pastorsResponse.data ?? []) as Pick<Pastor, "id" | "full_name" | "phone" | "district" | "speaker_role">[]).map((pastor) => [pastor.id, pastor]));
     const musicById = new Map(((musicResponse.data ?? []) as Pick<SpecialMusic, "id" | "performer_name" | "contact" | "church">[]).map((music) => [music.id, music]));
 
     setGuestsByService(
@@ -273,14 +294,14 @@ function FollowUpContent() {
           attendances.filter((row) => row.service_id === service.id).map((row): ReceptionGuest | null => {
             if (row.person_type === "visitante") {
               const person = visitorById.get(row.person_id);
-              return person ? { attendanceId: row.id, personId: row.person_id, kind: "visitante", fullName: person.full_name, contact: person.phone, detail: person.location, followedUpAt: row.followed_up_at } : null;
+              return person ? { attendanceId: row.id, personId: row.person_id, kind: "visitante", kindLabel: "Visitante", fullName: person.full_name, contact: person.phone, detail: person.location, followedUpAt: row.followed_up_at } : null;
             }
             if (row.person_type === "pastor") {
               const person = pastorById.get(row.person_id);
-              return person ? { attendanceId: row.id, personId: row.person_id, kind: "pastor", fullName: person.full_name, contact: person.phone, detail: person.district, followedUpAt: row.followed_up_at } : null;
+              return person ? { attendanceId: row.id, personId: row.person_id, kind: "pastor", kindLabel: person.speaker_role === "pregador" ? "Pregador" : "Pastor", fullName: person.full_name, contact: person.phone, detail: person.district, followedUpAt: row.followed_up_at } : null;
             }
             const person = musicById.get(row.person_id);
-            return person ? { attendanceId: row.id, personId: row.person_id, kind: "musica", fullName: person.performer_name, contact: person.contact, detail: person.church, followedUpAt: row.followed_up_at } : null;
+            return person ? { attendanceId: row.id, personId: row.person_id, kind: "musica", kindLabel: "Música Especial", fullName: person.performer_name, contact: person.contact, detail: person.church, followedUpAt: row.followed_up_at } : null;
           }).filter((guest): guest is ReceptionGuest => Boolean(guest)).sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR"))
         ])
       )
@@ -525,7 +546,30 @@ function FollowUpContent() {
   const selectedVisitorService = visitorServices.find(
     (service) => service.id === selectedVisitorServiceId
   );
-  const selectedServiceGuests = guestsByService[selectedVisitorServiceId] ?? [];
+  const selectedServiceGuests = useMemo(
+    () => guestsByService[selectedVisitorServiceId] ?? [],
+    [guestsByService, selectedVisitorServiceId]
+  );
+  const filteredServiceGuests = useMemo(() => {
+    const normalizedGuestSearch = normalizeSearch(guestSearch);
+
+    return selectedServiceGuests.filter((guest) => {
+      const isCompleted = Boolean(guest.followedUpAt);
+      const matchesFilter =
+        guestFilter === "todos" ||
+        (guestFilter === "pendentes" && !isCompleted) ||
+        (guestFilter === "concluidos" && isCompleted) ||
+        (guestFilter === "visitantes" && guest.kind === "visitante") ||
+        (guestFilter === "pastores" && guest.kind === "pastor") ||
+        (guestFilter === "musicas" && guest.kind === "musica");
+
+      if (!matchesFilter) return false;
+      if (!normalizedGuestSearch) return true;
+
+      return [guest.fullName, guest.contact, guest.detail, guest.kindLabel]
+        .some((value) => normalizeSearch(value).includes(normalizedGuestSearch));
+    });
+  }, [guestFilter, guestSearch, selectedServiceGuests]);
 
   const stats = useMemo(() => {
     const accompanied = items.filter((item) => item.followUp?.status === "acompanhado").length;
@@ -698,9 +742,10 @@ function FollowUpContent() {
 
     if (error) {
       setNeedsSqlSetup(true);
-      setMessage("Não foi possível marcar o acompanhamento. Rode o SQL 18 no Supabase.");
+      setMessage("Não foi possível marcar a conclusão. Rode o SQL 18 no Supabase.");
     } else {
-      setMessage(completed ? "Acompanhamento marcado como realizado." : "Acompanhamento reaberto.");
+      const actionLabel = guest.kind === "visitante" ? "Acompanhamento" : "Agradecimento";
+      setMessage(completed ? `${actionLabel} marcado como realizado.` : `${actionLabel} reaberto.`);
       await loadVisitorsByService();
     }
     setSavingId(null);
@@ -749,32 +794,66 @@ function FollowUpContent() {
       <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-sm font-medium text-muted">Recepção e boas-vindas</p>
-            <h2 className="mt-1 text-xl font-semibold text-ink">Convidados por culto</h2>
+            <p className="text-sm font-medium text-muted">Recepção, boas-vindas e gratidão</p>
+            <h2 className="mt-1 text-xl font-semibold text-ink">Acompanhamentos e agradecimentos</h2>
             <p className="mt-1 text-sm text-muted">
-              Marque quando o visitante, pastor ou música especial já recebeu acompanhamento.
+              Acompanhe visitantes e agradeça pastores, pregadores e músicas especiais após cada culto.
             </p>
           </div>
           <StatusBadge tone={selectedServiceGuests.length > 0 ? "success" : "neutral"}>
-            {selectedServiceGuests.filter((guest) => guest.followedUpAt).length}/{selectedServiceGuests.length} acompanhados
+            {selectedServiceGuests.filter((guest) => guest.followedUpAt).length}/{selectedServiceGuests.length} concluídos
           </StatusBadge>
         </div>
 
         {visitorServices.length > 0 ? (
-          <label className="mb-4 block">
-            <span className="field-label">Culto</span>
-            <select
-              className="field-input"
-              onChange={(event) => setSelectedVisitorServiceId(event.target.value)}
-              value={selectedVisitorServiceId}
-            >
-              {visitorServices.map((service) => (
-                <option key={service.id} value={service.id}>
-                  {service.title || SERVICE_LABELS[service.service_type]} — {formatDateBR(service.service_date)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="mb-4 grid gap-3 lg:grid-cols-2">
+            <label className="block">
+              <span className="field-label">Culto</span>
+              <select
+                className="field-input"
+                onChange={(event) => setSelectedVisitorServiceId(event.target.value)}
+                value={selectedVisitorServiceId}
+              >
+                {visitorServices.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.title || SERVICE_LABELS[service.service_type]} — {formatDateBR(service.service_date)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="relative block">
+              <span className="field-label">Buscar convidado</span>
+              <Search
+                aria-hidden="true"
+                className="pointer-events-none absolute bottom-3.5 left-3 text-muted"
+                size={18}
+              />
+              <input
+                className="field-input pl-10"
+                onChange={(event) => setGuestSearch(event.target.value)}
+                placeholder="Nome, contato, igreja, distrito..."
+                value={guestSearch}
+              />
+            </label>
+          </div>
+        ) : null}
+
+        {visitorServices.length > 0 ? (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {guestFilterOptions.map((option) => (
+              <button
+                aria-pressed={guestFilter === option.value}
+                className={`secondary-button min-h-10 px-3 py-2 ${
+                  guestFilter === option.value ? "border-forest bg-forest text-white hover:text-white" : ""
+                }`}
+                key={option.value}
+                onClick={() => setGuestFilter(option.value)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         ) : null}
 
         {visitorHistoryMessage ? (
@@ -788,16 +867,21 @@ function FollowUpContent() {
             title="Nenhum convidado neste culto"
             text="Visitantes, pastores e músicas especiais aparecerão aqui após a presença ser registrada."
           />
+        ) : filteredServiceGuests.length === 0 ? (
+          <Notice
+            title="Nenhum resultado neste filtro"
+            text="Escolha outro tipo, status ou limpe a busca para ver os convidados deste culto."
+          />
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
-            {selectedServiceGuests.map((guest) => {
+            {filteredServiceGuests.map((guest) => {
               const whatsappUrl = getThankYouWhatsAppUrl(
                 guest.contact,
                 guest.fullName,
                 guest.kind
               );
               const isAccompanied = Boolean(guest.followedUpAt);
-              const kindLabel = guest.kind === "visitante" ? "Visitante" : guest.kind === "pastor" ? "Pastor/Pregador" : "Música Especial";
+              const isThankYou = guest.kind !== "visitante";
 
               return (
                 <article className={`rounded-card border bg-paper p-4 ${isAccompanied ? "border-forest/30" : "border-line"}`} key={guest.attendanceId}>
@@ -805,17 +889,19 @@ function FollowUpContent() {
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-semibold text-ink">{guest.fullName}</p>
-                        <StatusBadge tone={isAccompanied ? "success" : "warning"}>{isAccompanied ? "Acompanhado" : "Pendente"}</StatusBadge>
+                        <StatusBadge tone={isAccompanied ? "success" : "warning"}>
+                          {isAccompanied ? (isThankYou ? "Agradecimento feito" : "Acompanhado") : "Pendente"}
+                        </StatusBadge>
                       </div>
                       <p className="mt-1 text-sm text-muted">
-                        {kindLabel} • {guest.contact || "Sem contato"} • {guest.detail || "Sem local informado"}
+                        {guest.kindLabel} • {guest.contact || "Sem contato"} • {guest.detail || "Sem local informado"}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {whatsappUrl ? <a className="secondary-button shrink-0" href={whatsappUrl} rel="noreferrer" target="_blank"><MessageCircle aria-hidden="true" size={17} />Mensagem</a> : null}
+                      {whatsappUrl ? <a className="secondary-button shrink-0" href={whatsappUrl} rel="noreferrer" target="_blank"><MessageCircle aria-hidden="true" size={17} />{isThankYou ? "Agradecer" : "Mensagem"}</a> : null}
                       <button className={isAccompanied ? "secondary-button" : "primary-button"} disabled={savingId === `attendance:${guest.attendanceId}`} onClick={() => toggleReceptionFollowUp(guest)} type="button">
                         <CheckCircle2 aria-hidden="true" size={17} />
-                        {isAccompanied ? "Reabrir" : "Marcar acompanhado"}
+                        {isAccompanied ? "Reabrir" : isThankYou ? "Marcar agradecimento" : "Marcar acompanhado"}
                       </button>
                     </div>
                   </div>

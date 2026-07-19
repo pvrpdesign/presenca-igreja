@@ -6,7 +6,6 @@ import {
   Edit3,
   FileDown,
   FileSpreadsheet,
-  MessageCircle,
   Save,
   Search,
   Trash2,
@@ -36,7 +35,6 @@ import type {
   Visitor,
   VisitorSensitiveData
 } from "@/lib/types";
-import { getThankYouWhatsAppUrl } from "@/lib/whatsapp";
 
 type RegistryKind = "membro" | "visitante" | "pastor" | "musica";
 
@@ -1217,17 +1215,7 @@ function UnifiedRegistryContent() {
             {filteredItems.length === 0 ? (
               <p className="text-sm text-muted">Nenhum cadastro encontrado.</p>
             ) : (
-              filteredItems.map((item) => {
-                const whatsappUrl =
-                  item.kind === "visitante" || item.kind === "pastor" || item.kind === "musica"
-                    ? getThankYouWhatsAppUrl(
-                        item.contact,
-                        item.title,
-                        item.kind
-                      )
-                    : null;
-
-                return (
+              filteredItems.map((item) => (
                 <div className="border-b border-line pb-3 last:border-0 last:pb-0" key={registryItemKey(item)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
@@ -1253,17 +1241,6 @@ function UnifiedRegistryContent() {
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col gap-2">
-                      {whatsappUrl ? (
-                        <a
-                          className="primary-button min-h-9 px-3 py-2"
-                          href={whatsappUrl}
-                          rel="noreferrer"
-                          target="_blank"
-                        >
-                          <MessageCircle aria-hidden="true" size={15} />
-                          Agradecer
-                        </a>
-                      ) : null}
                       <button
                         className="secondary-button min-h-9 px-3 py-2"
                         onClick={() => startEdit(item)}
@@ -1286,8 +1263,7 @@ function UnifiedRegistryContent() {
                     </div>
                   </div>
                 </div>
-                );
-              })
+              ))
             )}
           </div>
         </aside>
