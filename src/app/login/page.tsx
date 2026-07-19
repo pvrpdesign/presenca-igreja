@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LogIn, UserPlus } from "lucide-react";
+import { KeyRound, LogIn, Mail, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Notice } from "@/components/ui";
@@ -26,16 +26,22 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [requestedRole, setRequestedRole] = useState<UserRole>("recepcao");
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "recovery">("login");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const redirectTo = searchParams.get("redirect") || "/";
 
   useEffect(() => {
-    if (!isLoading && session) {
+    if (!isLoading && session && mode !== "recovery") {
       router.replace(redirectTo);
     }
-  }, [isLoading, redirectTo, router, session]);
+  }, [isLoading, mode, redirectTo, router, session]);
+
+  useEffect(() => {
+    if (searchParams.get("senha") === "alterada") {
+      setMessage("Senha alterada com sucesso. Entre usando a nova senha.");
+    }
+  }, [searchParams]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -76,6 +82,24 @@ function LoginForm() {
       return;
     }
 
+    if (mode === "recovery") {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/nova-senha`
+      });
+
+      setIsSubmitting(false);
+
+      if (error) {
+        setMessage("Não foi possível enviar o e-mail agora. Aguarde alguns minutos e tente novamente.");
+        return;
+      }
+
+      setMessage(
+        "Se este e-mail estiver cadastrado, você receberá uma mensagem para criar uma nova senha. Verifique também a caixa de spam."
+      );
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
 
     setIsSubmitting(false);
@@ -102,12 +126,18 @@ function LoginForm() {
             width={320}
           />
           <h1 className="text-xl font-semibold text-ink">
-            {mode === "login" ? "Controle de Presença" : "Solicitar acesso"}
+            {mode === "login"
+              ? "Controle de Presença"
+              : mode === "signup"
+                ? "Solicitar acesso"
+                : "Recuperar senha"}
           </h1>
           <p className="text-sm text-muted">
             {mode === "login"
               ? "Acesso da recepção e liderança"
-              : "O administrador analisará seu cadastro antes de liberar o sistema"}
+              : mode === "signup"
+                ? "O administrador analisará seu cadastro antes de liberar o sistema"
+                : "Enviaremos um link para o seu e-mail cadastrado"}
           </p>
         </div>
 
@@ -165,24 +195,46 @@ function LoginForm() {
             </label>
           ) : null}
 
-          <label className="block">
-            <span className="field-label">Senha</span>
-            <input
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              className="field-input"
-              disabled={!isSupabaseConfigured || isSubmitting}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-              minLength={mode === "signup" ? 8 : undefined}
-              type="password"
-              value={password}
-            />
-          </label>
+          {mode !== "recovery" ? (
+            <label className="block">
+              <span className="field-label">Senha</span>
+              <input
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                className="field-input"
+                disabled={!isSupabaseConfigured || isSubmitting}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                minLength={mode === "signup" ? 8 : undefined}
+                type="password"
+                value={password}
+              />
+            </label>
+          ) : null}
+
+          {mode === "login" ? (
+            <button
+              className="block w-full text-right text-sm font-semibold text-forest underline"
+              disabled={isSubmitting}
+              onClick={() => {
+                setMode("recovery");
+                setMessage("");
+                setPassword("");
+              }}
+              type="button"
+            >
+              Esqueci minha senha
+            </button>
+          ) : null}
 
           {message ? (
             <Notice
               title={message}
-              tone={message.startsWith("Solicitação enviada") ? "success" : "warning"}
+              tone={
+                message.startsWith("Solicitação enviada") || message.startsWith("Se este e-mail")
+                  || message.startsWith("Senha alterada")
+                  ? "success"
+                  : "warning"
+              }
             />
           ) : null}
 
@@ -191,10 +243,22 @@ function LoginForm() {
             disabled={!isSupabaseConfigured || isSubmitting}
             type="submit"
           >
-            {mode === "login" ? <LogIn aria-hidden="true" size={18} /> : <UserPlus aria-hidden="true" size={18} />}
+            {mode === "login" ? (
+              <LogIn aria-hidden="true" size={18} />
+            ) : mode === "signup" ? (
+              <UserPlus aria-hidden="true" size={18} />
+            ) : (
+              <Mail aria-hidden="true" size={18} />
+            )}
             {isSubmitting
-              ? mode === "login" ? "Entrando..." : "Enviando..."
-              : mode === "login" ? "Entrar" : "Enviar solicitação"}
+              ? mode === "login"
+                ? "Entrando..."
+                : "Enviando..."
+              : mode === "login"
+                ? "Entrar"
+                : mode === "signup"
+                  ? "Enviar solicitação"
+                  : "Enviar link de recuperação"}
           </button>
         </form>
         <button
@@ -207,7 +271,15 @@ function LoginForm() {
           }}
           type="button"
         >
-          {mode === "login" ? "Criar meu cadastro" : "Já tenho cadastro"}
+          {mode === "login" ? (
+            "Criar meu cadastro"
+          ) : mode === "signup" ? (
+            "Já tenho cadastro"
+          ) : (
+            <>
+              <KeyRound aria-hidden="true" size={18} /> Voltar para o login
+            </>
+          )}
         </button>
         <p className="mt-5 text-center text-xs leading-5 text-muted">
           Ao utilizar este sistema, consulte nosso{" "}
