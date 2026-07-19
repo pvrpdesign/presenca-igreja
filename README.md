@@ -70,13 +70,15 @@ O administrador inicial é associado ao usuário com e-mail `sistema@iasdcalcada
 
 9. Execute `supabase/24_followup_actor_names.sql` para permitir que a liderança veja o nome e o sobrenome de quem realizou cada acompanhamento ou agradecimento.
 
-10. Rode o app:
+10. Execute `supabase/25_followup_history.sql` para guardar o histórico imutável de contatos, tentativas e agradecimentos.
+
+11. Rode o app:
 
 ```bash
 npm run dev
 ```
 
-11. Abra `http://localhost:3000`.
+12. Abra `http://localhost:3000`.
 
 ## Publicar na Vercel
 
@@ -120,6 +122,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/22_transfer_admin.sql` para transferir a administração para o e-mail do sistema
 - `supabase/23_access_levels.sql` para separar os acessos de Administrador, Liderança e Recepção
 - `supabase/24_followup_actor_names.sql` para exibir o responsável por acompanhamentos e agradecimentos
+- `supabase/25_followup_history.sql` para preservar o histórico de cada contato realizado pela liderança
 
 Eles criam:
 

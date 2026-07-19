@@ -5,6 +5,8 @@ export type SpeakerRole = "pastor" | "pregador";
 export type ServiceType = "quarta" | "sabado" | "especial";
 export type PersonType = "membro" | "visitante" | "pastor" | "musica";
 export type FollowUpStatus = "pendente" | "acompanhado" | "removido";
+export type FollowUpActionType = "mensagem" | "ligacao" | "visita" | "oracao" | "agradecimento" | "outro";
+export type FollowUpOutcome = "realizado" | "sem_retorno";
 
 export type Profile = {
   id: string;
@@ -138,6 +140,20 @@ export type VisitorFollowUp = {
   contacted_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type FollowUpHistory = {
+  id: string;
+  person_id: string;
+  person_type: PersonType;
+  attendance_id: string | null;
+  service_id: string | null;
+  action_type: FollowUpActionType;
+  outcome: FollowUpOutcome;
+  notes: string | null;
+  performed_by: string | null;
+  performed_by_name: string;
+  performed_at: string;
 };
 
 export type Database = {
@@ -319,6 +335,24 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Omit<VisitorFollowUp, "id" | "created_at">>;
+        Relationships: [];
+      };
+      followup_history: {
+        Row: FollowUpHistory;
+        Insert: {
+          id?: string;
+          person_id: string;
+          person_type: PersonType;
+          attendance_id?: string | null;
+          service_id?: string | null;
+          action_type: FollowUpActionType;
+          outcome: FollowUpOutcome;
+          notes?: string | null;
+          performed_by: string;
+          performed_by_name?: string;
+          performed_at?: string;
+        };
+        Update: never;
         Relationships: [];
       };
     };

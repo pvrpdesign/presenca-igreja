@@ -5,6 +5,7 @@ import {
   AlertCircle,
   CheckCircle2,
   HeartHandshake,
+  History as HistoryIcon,
   MessageCircle,
   RefreshCw,
   Save,
@@ -22,6 +23,9 @@ import { supabase } from "@/lib/supabase";
 import { getThankYouWhatsAppUrl } from "@/lib/whatsapp";
 import type {
   Attendance,
+  FollowUpActionType,
+  FollowUpHistory,
+  FollowUpOutcome,
   FollowUpStatus,
   Member,
   MemberFollowUp,
@@ -37,6 +41,7 @@ type FollowMember = Pick<Member, "id" | "full_name" | "phone" | "neighborhood" |
 type FollowVisitor = Pick<Visitor, "id" | "full_name" | "phone" | "location">;
 type ReceptionGuest = {
   attendanceId: string;
+  serviceId: string;
   personId: string;
   kind: "visitante" | "pastor" | "musica";
   fullName: string;
@@ -104,6 +109,23 @@ type FollowUpItem = {
 type FilterMode = "pendentes" | "todos" | "acompanhados" | "criticos" | "membros" | "visitantes";
 type GuestFilterMode = "todos" | "pendentes" | "concluidos" | "visitantes" | "pastores" | "musicas";
 
+const followUpActionOptions: { label: string; value: FollowUpActionType }[] = [
+  { label: "Mensagem", value: "mensagem" },
+  { label: "Ligação", value: "ligacao" },
+  { label: "Visita", value: "visita" },
+  { label: "Oração", value: "oracao" },
+  { label: "Outro", value: "outro" }
+];
+
+const followUpActionLabels: Record<FollowUpActionType, string> = {
+  mensagem: "Mensagem",
+  ligacao: "Ligação",
+  visita: "Visita",
+  oracao: "Oração",
+  agradecimento: "Agradecimento",
+  outro: "Outro"
+};
+
 const filterOptions: { label: string; value: FilterMode }[] = [
   { label: "Pendentes", value: "pendentes" },
   { label: "Todos", value: "todos" },
@@ -167,6 +189,47 @@ function itemKey(item: Pick<FollowUpItem, "id" | "kind">) {
   return `${item.kind}:${item.id}`;
 }
 
+function attendanceHistoryKey(attendanceId: string) {
+  return `attendance:${attendanceId}`;
+}
+
+function FollowUpHistoryList({
+  actorNames,
+  entries
+}: {
+  actorNames: Record<string, string>;
+  entries: FollowUpHistory[];
+}) {
+  if (entries.length === 0) return null;
+
+  return (
+    <details className="mt-4 rounded-xl border border-line bg-white px-3 py-2">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-ink">
+        <HistoryIcon aria-hidden="true" size={16} />
+        Histórico ({entries.length})
+      </summary>
+      <div className="mt-3 space-y-3 border-t border-line pt-3">
+        {entries.map((entry) => (
+          <div className="text-sm" key={entry.id}>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge tone={entry.outcome === "realizado" ? "success" : "warning"}>
+                {entry.outcome === "realizado" ? "Realizado" : "Sem retorno"}
+              </StatusBadge>
+              <span className="font-semibold text-ink">{followUpActionLabels[entry.action_type]}</span>
+            </div>
+            <p className="mt-1 text-xs text-muted">
+              {entry.performed_by_name || (entry.performed_by
+                ? actorNames[entry.performed_by] ?? "Usuário não disponível"
+                : "Usuário não identificado")} em {formatActionDate(entry.performed_at)}
+            </p>
+            {entry.notes ? <p className="mt-1 whitespace-pre-wrap text-muted">{entry.notes}</p> : null}
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function presentKey(personType: PersonType, serviceId: string) {
   return `${personType}:${serviceId}`;
 }
@@ -203,6 +266,8 @@ function FollowUpContent() {
   const [isVisitorHistoryLoading, setIsVisitorHistoryLoading] = useState(true);
   const [visitorHistoryMessage, setVisitorHistoryMessage] = useState("");
   const [actorNames, setActorNames] = useState<Record<string, string>>({});
+  const [histories, setHistories] = useState<Record<string, FollowUpHistory[]>>({});
+  const [actionByItem, setActionByItem] = useState<Record<string, FollowUpActionType>>({});
 
   const loadActorNames = useCallback(async (userIds: (string | null)[]) => {
     const uniqueUserIds = [...new Set(userIds.filter((userId): userId is string => Boolean(userId)))];
@@ -224,6 +289,48 @@ function FollowUpContent() {
       )
     }));
   }, []);
+
+  const loadHistory = useCallback(async (mode: "attendance" | "person", ids: string[]) => {
+    const uniqueIds = [...new Set(ids)];
+    if (uniqueIds.length === 0) return;
+
+    let query = supabase
+      .from("followup_history")
+      .select("id, person_id, person_type, attendance_id, service_id, action_type, outcome, notes, performed_by, performed_by_name, performed_at")
+      .order("performed_at", { ascending: false });
+
+    query = mode === "attendance"
+      ? query.in("attendance_id", uniqueIds)
+      : query.in("person_id", uniqueIds);
+
+    const { data, error } = await query;
+    if (error) {
+      setNeedsSqlSetup(true);
+      return;
+    }
+
+    const entries = (data ?? []) as FollowUpHistory[];
+    await loadActorNames(entries.map((entry) => entry.performed_by));
+    setHistories((current) => {
+      const next = { ...current };
+      uniqueIds.forEach((id) => {
+        if (mode === "attendance") {
+          next[attendanceHistoryKey(id)] = [];
+        } else {
+          next[itemKey({ id, kind: "membro" })] = [];
+          next[itemKey({ id, kind: "visitante" })] = [];
+        }
+      });
+      entries.forEach((entry) => {
+        if (mode === "attendance" && !entry.attendance_id) return;
+        const key = mode === "attendance"
+          ? attendanceHistoryKey(entry.attendance_id!)
+          : itemKey({ id: entry.person_id, kind: entry.person_type });
+        next[key] = [...(next[key] ?? []), entry];
+      });
+      return next;
+    });
+  }, [loadActorNames]);
 
   const loadVisitorsByService = useCallback(async () => {
     setIsVisitorHistoryLoading(true);
@@ -276,7 +383,10 @@ function FollowUpContent() {
       Attendance,
       "id" | "person_id" | "person_type" | "service_id" | "followed_up_by" | "followed_up_at"
     >[];
-    await loadActorNames(attendances.map((attendance) => attendance.followed_up_by));
+    await Promise.all([
+      loadActorNames(attendances.map((attendance) => attendance.followed_up_by)),
+      loadHistory("attendance", attendances.map((attendance) => attendance.id))
+    ]);
     const visitorIds = [
       ...new Set(
         attendances
@@ -327,24 +437,23 @@ function FollowUpContent() {
           attendances.filter((row) => row.service_id === service.id).map((row): ReceptionGuest | null => {
             if (row.person_type === "visitante") {
               const person = visitorById.get(row.person_id);
-              return person ? { attendanceId: row.id, personId: row.person_id, kind: "visitante", kindLabel: "Visitante", fullName: person.full_name, contact: person.phone, detail: person.location, followedUpBy: row.followed_up_by, followedUpAt: row.followed_up_at } : null;
+              return person ? { attendanceId: row.id, serviceId: row.service_id, personId: row.person_id, kind: "visitante", kindLabel: "Visitante", fullName: person.full_name, contact: person.phone, detail: person.location, followedUpBy: row.followed_up_by, followedUpAt: row.followed_up_at } : null;
             }
             if (row.person_type === "pastor") {
               const person = pastorById.get(row.person_id);
-              return person ? { attendanceId: row.id, personId: row.person_id, kind: "pastor", kindLabel: person.speaker_role === "pregador" ? "Pregador" : "Pastor", fullName: person.full_name, contact: person.phone, detail: person.district, followedUpBy: row.followed_up_by, followedUpAt: row.followed_up_at } : null;
+              return person ? { attendanceId: row.id, serviceId: row.service_id, personId: row.person_id, kind: "pastor", kindLabel: person.speaker_role === "pregador" ? "Pregador" : "Pastor", fullName: person.full_name, contact: person.phone, detail: person.district, followedUpBy: row.followed_up_by, followedUpAt: row.followed_up_at } : null;
             }
             const person = musicById.get(row.person_id);
-            return person ? { attendanceId: row.id, personId: row.person_id, kind: "musica", kindLabel: "Música Especial", fullName: person.performer_name, contact: person.contact, detail: person.church, followedUpBy: row.followed_up_by, followedUpAt: row.followed_up_at } : null;
+            return person ? { attendanceId: row.id, serviceId: row.service_id, personId: row.person_id, kind: "musica", kindLabel: "Música Especial", fullName: person.performer_name, contact: person.contact, detail: person.church, followedUpBy: row.followed_up_by, followedUpAt: row.followed_up_at } : null;
           }).filter((guest): guest is ReceptionGuest => Boolean(guest)).sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR"))
         ])
       )
     );
     setIsVisitorHistoryLoading(false);
-  }, [loadActorNames]);
+  }, [loadActorNames, loadHistory]);
 
   const loadFollowUps = useCallback(async () => {
     setIsLoading(true);
-    setMessage("");
     setNeedsSqlSetup(false);
 
     const { data: servicesData, error: servicesError } = await supabase
@@ -537,6 +646,7 @@ function FollowUpContent() {
     await loadActorNames(
       [...memberFollowUps, ...visitorFollowUps].map((followUp) => followUp.contacted_by)
     );
+    await loadHistory("person", [...memberIds, ...visitorIds]);
 
     const followUpByMember = new Map(memberFollowUps.map((followUp) => [followUp.person_id, followUp]));
     const followUpByVisitor = new Map(visitorFollowUps.map((followUp) => [followUp.person_id, followUp]));
@@ -572,8 +682,11 @@ function FollowUpContent() {
         nextItems.map((item) => [itemKey(item), item.followUp?.notes ?? ""])
       )
     );
+    setActionByItem((current) =>
+      Object.fromEntries(nextItems.map((item) => [itemKey(item), current[itemKey(item)] ?? "mensagem"]))
+    );
     setIsLoading(false);
-  }, [loadActorNames]);
+  }, [loadActorNames, loadHistory]);
 
   useEffect(() => {
     loadFollowUps();
@@ -649,7 +762,7 @@ function FollowUpContent() {
     : "Nenhum culto registrado";
 
   const saveFollowUp = useCallback(
-    async (item: FollowUpItem, status?: FollowUpStatus) => {
+    async (item: FollowUpItem, status?: FollowUpStatus, outcome?: FollowUpOutcome) => {
       if (!session?.user.id) return;
 
       const nextStatus = status ?? item.followUp?.status ?? "pendente";
@@ -696,15 +809,37 @@ function FollowUpContent() {
         return;
       }
 
+      if (outcome) {
+        const { error: historyError } = await supabase.from("followup_history").insert({
+          person_id: item.id,
+          person_type: item.kind,
+          service_id: item.lastService.id,
+          action_type: actionByItem[currentItemKey] ?? "mensagem",
+          outcome,
+          notes: notesByItem[currentItemKey]?.trim() || null,
+          performed_by: session.user.id
+        });
+
+        if (historyError) {
+          setNeedsSqlSetup(true);
+          setMessage("O status foi salvo, mas o histórico não. Execute o SQL 25 no Supabase.");
+          await loadFollowUps();
+          setSavingId(null);
+          return;
+        }
+      }
+
       setMessage(
-        nextStatus === "acompanhado"
+        outcome === "sem_retorno"
+          ? "Tentativa de contato registrada no histórico."
+          : nextStatus === "acompanhado"
           ? "Acompanhamento marcado como concluído."
           : "Acompanhamento salvo."
       );
       await loadFollowUps();
       setSavingId(null);
     },
-    [loadFollowUps, notesByItem, session?.user.id]
+    [actionByItem, loadFollowUps, notesByItem, session?.user.id]
   );
 
   const removeFromFollowUpList = useCallback(
@@ -782,6 +917,25 @@ function FollowUpContent() {
       setMessage("Não foi possível marcar a conclusão. Rode o SQL 18 no Supabase.");
     } else {
       const actionLabel = guest.kind === "visitante" ? "Acompanhamento" : "Agradecimento";
+      if (completed) {
+        const { error: historyError } = await supabase.from("followup_history").insert({
+          person_id: guest.personId,
+          person_type: guest.kind,
+          attendance_id: guest.attendanceId,
+          service_id: guest.serviceId,
+          action_type: guest.kind === "visitante" ? "mensagem" : "agradecimento",
+          outcome: "realizado",
+          performed_by: session.user.id
+        });
+
+        if (historyError) {
+          setNeedsSqlSetup(true);
+          setMessage(`${actionLabel} marcado, mas o histórico não foi salvo. Execute o SQL 25 no Supabase.`);
+          await loadVisitorsByService();
+          setSavingId(null);
+          return;
+        }
+      }
       setMessage(completed ? `${actionLabel} marcado como realizado.` : `${actionLabel} reaberto.`);
       await loadVisitorsByService();
     }
@@ -795,6 +949,7 @@ function FollowUpContent() {
           <button
             className="secondary-button"
             onClick={() => {
+              setMessage("");
               loadFollowUps();
               loadVisitorsByService();
             }}
@@ -949,6 +1104,10 @@ function FollowUpContent() {
                       </button>
                     </div>
                   </div>
+                  <FollowUpHistoryList
+                    actorNames={actorNames}
+                    entries={histories[attendanceHistoryKey(guest.attendanceId)] ?? []}
+                  />
                 </article>
               );
             })}
@@ -961,7 +1120,7 @@ function FollowUpContent() {
           <Notice
             tone="warning"
             title="Atualização do Supabase pendente"
-            text="Rode o SQL indicado pela mensagem. Para exibir o responsável, execute também supabase/24_followup_actor_names.sql."
+            text="Rode o SQL indicado pela mensagem. O histórico de contatos requer supabase/25_followup_history.sql."
           />
         </div>
       ) : null}
@@ -1076,6 +1235,24 @@ function FollowUpContent() {
                   ) : null}
                 </dl>
 
+                <label className="mb-3 block">
+                  <span className="field-label">Forma do contato</span>
+                  <select
+                    className="field-input"
+                    onChange={(event) =>
+                      setActionByItem((current) => ({
+                        ...current,
+                        [currentItemKey]: event.target.value as FollowUpActionType
+                      }))
+                    }
+                    value={actionByItem[currentItemKey] ?? "mensagem"}
+                  >
+                    {followUpActionOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+
                 <label className="block">
                   <span className="field-label">Observação do acompanhamento</span>
                   <textarea
@@ -1110,12 +1287,12 @@ function FollowUpContent() {
                   )}
                   <button
                     className="secondary-button"
-                    disabled={savingId === `${currentItemKey}:${item.followUp?.status ?? "pendente"}`}
-                    onClick={() => saveFollowUp(item)}
+                    disabled={savingId === `${currentItemKey}:pendente`}
+                    onClick={() => saveFollowUp(item, "pendente", "sem_retorno")}
                     type="button"
                   >
                     <Save aria-hidden="true" size={17} />
-                    Salvar
+                    Registrar tentativa
                   </button>
                   {isAccompanied ? (
                     <button
@@ -1130,7 +1307,7 @@ function FollowUpContent() {
                     <button
                       className="primary-button"
                       disabled={savingId === `${currentItemKey}:acompanhado`}
-                      onClick={() => saveFollowUp(item, "acompanhado")}
+                      onClick={() => saveFollowUp(item, "acompanhado", "realizado")}
                       type="button"
                     >
                       <CheckCircle2 aria-hidden="true" size={17} />
@@ -1147,6 +1324,11 @@ function FollowUpContent() {
                     Excluir
                   </button>
                 </div>
+
+                <FollowUpHistoryList
+                  actorNames={actorNames}
+                  entries={histories[currentItemKey] ?? []}
+                />
               </article>
             );
           })}
