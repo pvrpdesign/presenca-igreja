@@ -184,7 +184,7 @@ export default function AttendancePage() {
 }
 
 function AttendanceContent() {
-  const { session } = useAuth();
+  const { profile, session } = useAuth();
   const searchParams = useSearchParams();
   const dateParam = searchParams.get("data");
   const typeParam = searchParams.get("tipo");
@@ -816,9 +816,7 @@ function AttendanceContent() {
           : quickVisitor.denomination_choice === "adventista"
             ? "Adventista"
             : quickVisitor.denomination_other.trim() || null,
-      how_heard: quickVisitor.how_heard.trim() || null,
-      prayer_request: quickVisitor.prayer_request.trim() || null,
-      notes: quickVisitor.notes.trim() || null
+      how_heard: quickVisitor.how_heard.trim() || null
     };
 
     const { data: existingVisitors } = await supabase
@@ -860,9 +858,22 @@ function AttendanceContent() {
       .single();
 
     if (error || !data) {
-      setMessage("Não foi possível cadastrar o visitante. Rode o SQL 15 no Supabase.");
+      setMessage("Não foi possível cadastrar o visitante. Rode o SQL 19 no Supabase.");
       setIsMarking(false);
       return;
+    }
+
+    if (profile?.role === "lideranca") {
+      const { error: sensitiveError } = await supabase.from("visitor_sensitive_data").upsert({
+        visitor_id: data.id,
+        prayer_request: quickVisitor.prayer_request.trim() || null,
+        notes: quickVisitor.notes.trim() || null,
+        created_by: session?.user.id ?? null,
+        updated_by: session?.user.id ?? null
+      });
+      if (sensitiveError) {
+        setMessage("Visitante salvo, mas os dados pastorais não foram gravados. Rode o SQL 19 no Supabase.");
+      }
     }
 
     await insertAttendance({
@@ -1210,24 +1221,29 @@ function AttendanceContent() {
                     value={quickVisitor.how_heard}
                   />
                 </Field>
-                <Field label="Pedido de oração">
-                  <textarea
-                    className="field-input min-h-20 resize-y"
-                    onChange={(event) =>
-                      setQuickVisitor({ ...quickVisitor, prayer_request: event.target.value })
-                    }
-                    value={quickVisitor.prayer_request}
-                  />
-                </Field>
-                <Field label="Observações">
-                  <textarea
-                    className="field-input min-h-20 resize-y"
-                    onChange={(event) =>
-                      setQuickVisitor({ ...quickVisitor, notes: event.target.value })
-                    }
-                    value={quickVisitor.notes}
-                  />
-                </Field>
+                {profile?.role === "lideranca" ? (
+                  <div className="grid gap-3 rounded-card border border-forest/20 bg-forest/5 p-4">
+                    <p className="text-sm font-semibold text-ink">Área pastoral — somente liderança</p>
+                    <Field label="Pedido de oração">
+                      <textarea
+                        className="field-input min-h-20 resize-y"
+                        onChange={(event) =>
+                          setQuickVisitor({ ...quickVisitor, prayer_request: event.target.value })
+                        }
+                        value={quickVisitor.prayer_request}
+                      />
+                    </Field>
+                    <Field label="Observações pastorais">
+                      <textarea
+                        className="field-input min-h-20 resize-y"
+                        onChange={(event) =>
+                          setQuickVisitor({ ...quickVisitor, notes: event.target.value })
+                        }
+                        value={quickVisitor.notes}
+                      />
+                    </Field>
+                  </div>
+                ) : null}
 
                 <div className="grid gap-2 sm:grid-cols-2">
                   <button className="primary-button" disabled={isMarking} type="submit">

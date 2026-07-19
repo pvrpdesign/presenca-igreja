@@ -60,9 +60,17 @@ create table if not exists public.visitors (
   location text,
   denomination text,
   how_heard text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.visitor_sensitive_data (
+  visitor_id uuid primary key references public.visitors(id) on delete cascade,
   prayer_request text,
   notes text,
   created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

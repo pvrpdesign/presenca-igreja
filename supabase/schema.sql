@@ -60,9 +60,17 @@ create table if not exists public.visitors (
   location text,
   denomination text,
   how_heard text,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.visitor_sensitive_data (
+  visitor_id uuid primary key references public.visitors(id) on delete cascade,
   prayer_request text,
   notes text,
   created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -200,6 +208,11 @@ create trigger visitor_followups_set_updated_at
 before update on public.visitor_followups
 for each row execute function public.set_updated_at();
 
+drop trigger if exists visitor_sensitive_data_set_updated_at on public.visitor_sensitive_data;
+create trigger visitor_sensitive_data_set_updated_at
+before update on public.visitor_sensitive_data
+for each row execute function public.set_updated_at();
+
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as '
 begin
   insert into public.profiles (id, full_name, role)
@@ -232,6 +245,7 @@ alter table public.services enable row level security;
 alter table public.attendances enable row level security;
 alter table public.member_followups enable row level security;
 alter table public.visitor_followups enable row level security;
+alter table public.visitor_sensitive_data enable row level security;
 
 drop policy if exists "Users can read own profile" on public.profiles;
 create policy "Users can read own profile"
@@ -308,6 +322,27 @@ on public.pastors
 for select
 to authenticated
 using (public.current_user_role() in ('recepcao', 'lideranca'));
+
+drop policy if exists "Leadership can read visitor sensitive data" on public.visitor_sensitive_data;
+create policy "Leadership can read visitor sensitive data"
+on public.visitor_sensitive_data for select to authenticated
+using (public.current_user_role() = 'lideranca');
+
+drop policy if exists "Leadership can insert visitor sensitive data" on public.visitor_sensitive_data;
+create policy "Leadership can insert visitor sensitive data"
+on public.visitor_sensitive_data for insert to authenticated
+with check (public.current_user_role() = 'lideranca');
+
+drop policy if exists "Leadership can update visitor sensitive data" on public.visitor_sensitive_data;
+create policy "Leadership can update visitor sensitive data"
+on public.visitor_sensitive_data for update to authenticated
+using (public.current_user_role() = 'lideranca')
+with check (public.current_user_role() = 'lideranca');
+
+drop policy if exists "Leadership can delete visitor sensitive data" on public.visitor_sensitive_data;
+create policy "Leadership can delete visitor sensitive data"
+on public.visitor_sensitive_data for delete to authenticated
+using (public.current_user_role() = 'lideranca');
 
 drop policy if exists "Reception and leadership can insert pastors" on public.pastors;
 create policy "Reception and leadership can insert pastors"
@@ -591,3 +626,4 @@ grant select, insert, delete on public.attendances to authenticated;
 grant update (followed_up_by, followed_up_at) on public.attendances to authenticated;
 grant select, insert, update on public.member_followups to authenticated;
 grant select, insert, update on public.visitor_followups to authenticated;
+grant select, insert, update, delete on public.visitor_sensitive_data to authenticated;

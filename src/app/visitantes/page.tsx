@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
 import { supabase } from "@/lib/supabase";
-import type { Visitor } from "@/lib/types";
+import type { Visitor, VisitorSensitiveData } from "@/lib/types";
 import { getThankYouWhatsAppUrl } from "@/lib/whatsapp";
 
 const initialForm = {
@@ -44,10 +44,13 @@ export default function VisitorsPage() {
 }
 
 function VisitorsContent() {
-  const { session } = useAuth();
+  const { profile, session } = useAuth();
   const [form, setForm] = useState(initialForm);
   const [editingVisitorId, setEditingVisitorId] = useState<string | null>(null);
   const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [sensitiveByVisitor, setSensitiveByVisitor] = useState<
+    Record<string, Pick<VisitorSensitiveData, "prayer_request" | "notes">>
+  >({});
   const [filters, setFilters] = useState(initialFilters);
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -61,7 +64,26 @@ function VisitorsContent() {
       .limit(500);
 
     setVisitors((data ?? []) as Visitor[]);
-  }, []);
+
+    if (profile?.role === "lideranca") {
+      const { data: sensitiveData } = await supabase
+        .from("visitor_sensitive_data")
+        .select("visitor_id, prayer_request, notes");
+      setSensitiveByVisitor(
+        Object.fromEntries(
+          ((sensitiveData ?? []) as Pick<
+            VisitorSensitiveData,
+            "visitor_id" | "prayer_request" | "notes"
+          >[]).map(({ visitor_id, prayer_request, notes }) => [
+            visitor_id,
+            { prayer_request, notes }
+          ])
+        )
+      );
+    } else {
+      setSensitiveByVisitor({});
+    }
+  }, [profile?.role]);
 
   useEffect(() => {
     loadVisitors();
@@ -81,15 +103,15 @@ function VisitorsContent() {
           visitor.location,
           visitor.denomination,
           visitor.how_heard,
-          visitor.prayer_request,
-          visitor.notes
+          sensitiveByVisitor[visitor.id]?.prayer_request,
+          sensitiveByVisitor[visitor.id]?.notes
         ].some((value) => normalizeFilter(value).includes(search));
       const matchesLocation = !location || normalizeFilter(visitor.location).includes(location);
       const matchesHowHeard = !howHeard || normalizeFilter(visitor.how_heard).includes(howHeard);
 
       return matchesSearch && matchesLocation && matchesHowHeard;
     });
-  }, [filters, visitors]);
+  }, [filters, sensitiveByVisitor, visitors]);
 
   function resetForm() {
     setForm(initialForm);
@@ -97,6 +119,7 @@ function VisitorsContent() {
   }
 
   function startEdit(visitor: Visitor) {
+    const sensitive = sensitiveByVisitor[visitor.id];
     setEditingVisitorId(visitor.id);
     setForm({
       full_name: visitor.full_name,
@@ -113,8 +136,8 @@ function VisitorsContent() {
           ? visitor.denomination
           : "",
       how_heard: visitor.how_heard ?? "",
-      prayer_request: visitor.prayer_request ?? "",
-      notes: visitor.notes ?? ""
+      prayer_request: sensitive?.prayer_request ?? "",
+      notes: sensitive?.notes ?? ""
     });
     setMessage("Editando visitante selecionado.");
     document.getElementById("visitor-form")?.scrollIntoView({ behavior: "smooth" });
@@ -135,9 +158,7 @@ function VisitorsContent() {
           : form.denomination_choice === "adventista"
             ? "Adventista"
             : form.denomination_other.trim() || null,
-      how_heard: form.how_heard.trim() || null,
-      prayer_request: form.prayer_request.trim() || null,
-      notes: form.notes.trim() || null
+      how_heard: form.how_heard.trim() || null
     };
 
     const duplicate = findPotentialDuplicate(
@@ -158,16 +179,24 @@ function VisitorsContent() {
       return;
     }
 
-    const { error } = editingVisitorId
-      ? await supabase.from("visitors").update(payload).eq("id", editingVisitorId)
-      : await supabase.from("visitors").insert({
-          ...payload,
-          created_by: session?.user.id ?? null
-        });
+    let visitorId = editingVisitorId;
+    let visitorError = null;
 
-    setIsSubmitting(false);
+    if (editingVisitorId) {
+      const { error } = await supabase.from("visitors").update(payload).eq("id", editingVisitorId);
+      visitorError = error;
+    } else {
+      const { data, error } = await supabase
+        .from("visitors")
+        .insert({ ...payload, created_by: session?.user.id ?? null })
+        .select("id")
+        .single();
+      visitorError = error;
+      visitorId = data?.id ?? null;
+    }
 
-    if (error) {
+    if (visitorError || !visitorId) {
+      setIsSubmitting(false);
       setMessage(
         editingVisitorId
           ? "Não foi possível atualizar o visitante. Verifique se o SQL 15 foi executado no Supabase."
@@ -175,6 +204,23 @@ function VisitorsContent() {
       );
       return;
     }
+
+    if (profile?.role === "lideranca") {
+      const { error: sensitiveError } = await supabase.from("visitor_sensitive_data").upsert({
+        visitor_id: visitorId,
+        prayer_request: form.prayer_request.trim() || null,
+        notes: form.notes.trim() || null,
+        created_by: session?.user.id ?? null,
+        updated_by: session?.user.id ?? null
+      });
+      if (sensitiveError) {
+        setIsSubmitting(false);
+        setMessage("Cadastro salvo, mas os dados pastorais não foram gravados. Rode o SQL 19 no Supabase.");
+        return;
+      }
+    }
+
+    setIsSubmitting(false);
 
     setMessage(
       editingVisitorId ? "Visitante atualizado com sucesso." : "Visitante cadastrado com sucesso."
@@ -232,8 +278,12 @@ function VisitorsContent() {
           "Cidade/bairro": visitor.location ?? "",
           Denominação: visitor.denomination ?? "",
           "Como conheceu": visitor.how_heard ?? "",
-          "Pedido de oração": visitor.prayer_request ?? "",
-          Observações: visitor.notes ?? "",
+          ...(profile?.role === "lideranca"
+            ? {
+                "Pedido de oração": sensitiveByVisitor[visitor.id]?.prayer_request ?? "",
+                "Observações pastorais": sensitiveByVisitor[visitor.id]?.notes ?? ""
+              }
+            : {}),
           "Criado em": new Date(visitor.created_at).toLocaleDateString("pt-BR")
         }))
       }
@@ -355,21 +405,25 @@ function VisitorsContent() {
               />
             </Field>
 
-            <Field label="Pedido de oração">
-              <textarea
-                className="field-input min-h-24 resize-y"
-                onChange={(event) => setForm({ ...form, prayer_request: event.target.value })}
-                value={form.prayer_request}
-              />
-            </Field>
-
-            <Field label="Observações">
-              <textarea
-                className="field-input min-h-24 resize-y"
-                onChange={(event) => setForm({ ...form, notes: event.target.value })}
-                value={form.notes}
-              />
-            </Field>
+            {profile?.role === "lideranca" ? (
+              <div className="grid gap-4 rounded-card border border-forest/20 bg-forest/5 p-4">
+                <p className="text-sm font-semibold text-ink">Área pastoral — somente liderança</p>
+                <Field label="Pedido de oração">
+                  <textarea
+                    className="field-input min-h-24 resize-y"
+                    onChange={(event) => setForm({ ...form, prayer_request: event.target.value })}
+                    value={form.prayer_request}
+                  />
+                </Field>
+                <Field label="Observações pastorais">
+                  <textarea
+                    className="field-input min-h-24 resize-y"
+                    onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                    value={form.notes}
+                  />
+                </Field>
+              </div>
+            ) : null}
 
             {message ? (
               <Notice

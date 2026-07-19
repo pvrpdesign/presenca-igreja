@@ -124,6 +124,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/15_visitor_denomination.sql` para adicionar a denominação ao cadastro de visitantes
 - `supabase/16_pastor_speaker_role.sql` para permitir escolher entre Pastor e Pregador
 - `supabase/17_member_qr_checkin.sql` para ativar o check-in de membros por QR Code
+- `supabase/19_visitor_sensitive_data.sql` para restringir pedidos de oração e observações pastorais à liderança
 
 Eles criam:
 

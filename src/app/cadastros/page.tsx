@@ -32,7 +32,8 @@ import type {
   Pastor,
   SpeakerRole,
   SpecialMusic,
-  Visitor
+  Visitor,
+  VisitorSensitiveData
 } from "@/lib/types";
 import { getThankYouWhatsAppUrl } from "@/lib/whatsapp";
 
@@ -112,6 +113,9 @@ function UnifiedRegistryContent() {
   const [editing, setEditing] = useState<{ id: string; kind: RegistryKind } | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [sensitiveByVisitor, setSensitiveByVisitor] = useState<
+    Record<string, Pick<VisitorSensitiveData, "prayer_request" | "notes">>
+  >({});
   const [pastors, setPastors] = useState<Pastor[]>([]);
   const [specialMusic, setSpecialMusic] = useState<SpecialMusic[]>([]);
   const [kindFilter, setKindFilter] = useState<RegistryKind | "todos">("todos");
@@ -148,10 +152,29 @@ function UnifiedRegistryContent() {
     setPastors((pastorsResponse.data ?? []) as Pastor[]);
     setSpecialMusic((specialMusicResponse.data ?? []) as SpecialMusic[]);
 
+    if (profile?.role === "lideranca") {
+      const { data: sensitiveData } = await supabase
+        .from("visitor_sensitive_data")
+        .select("visitor_id, prayer_request, notes");
+      setSensitiveByVisitor(
+        Object.fromEntries(
+          ((sensitiveData ?? []) as Pick<
+            VisitorSensitiveData,
+            "visitor_id" | "prayer_request" | "notes"
+          >[]).map(({ visitor_id, prayer_request, notes }) => [
+            visitor_id,
+            { prayer_request, notes }
+          ])
+        )
+      );
+    } else {
+      setSensitiveByVisitor({});
+    }
+
     if (pastorsResponse.error || specialMusicResponse.error) {
       setMessage("Rode o SQL 13 no Supabase para ativar Pastor e Música Especial.");
     }
-  }, []);
+  }, [profile?.role]);
 
   useEffect(() => {
     loadRegistries();
@@ -258,6 +281,7 @@ function UnifiedRegistryContent() {
 
     if (item.kind === "visitante") {
       const visitor = item.raw as Visitor;
+      const sensitive = sensitiveByVisitor[visitor.id];
       setForm({
         ...initialForm,
         kind: "visitante",
@@ -275,8 +299,8 @@ function UnifiedRegistryContent() {
             ? visitor.denomination
             : "",
         how_heard: visitor.how_heard ?? "",
-        prayer_request: visitor.prayer_request ?? "",
-        notes: visitor.notes ?? ""
+        prayer_request: sensitive?.prayer_request ?? "",
+        notes: sensitive?.notes ?? ""
       });
     }
 
@@ -405,23 +429,37 @@ function UnifiedRegistryContent() {
             : form.denomination_choice === "adventista"
               ? "Adventista"
               : form.denomination_other.trim() || null,
-        how_heard: form.how_heard.trim() || null,
-        prayer_request: form.prayer_request.trim() || null,
-        notes: form.notes.trim() || null
+        how_heard: form.how_heard.trim() || null
       };
       const duplicate = findPotentialDuplicate(visitors, payload, editing?.kind === "visitante" ? editing.id : null);
 
       if (duplicate) {
         errorMessage = `${duplicate.full_name} já está cadastrado como visitante.`;
-      } else if (editing?.kind === "visitante") {
-        const { error } = await supabase.from("visitors").update(payload).eq("id", editing.id);
-        if (error) errorMessage = "Não foi possível atualizar o visitante. Rode o SQL 15 no Supabase.";
       } else {
-        const { error } = await supabase.from("visitors").insert({
-          ...payload,
-          created_by: session?.user.id ?? null
-        });
-        if (error) errorMessage = "Não foi possível cadastrar o visitante. Rode o SQL 15 no Supabase.";
+        let visitorId = editing?.kind === "visitante" ? editing.id : null;
+        if (visitorId) {
+          const { error } = await supabase.from("visitors").update(payload).eq("id", visitorId);
+          if (error) errorMessage = "Não foi possível atualizar o visitante. Rode o SQL 19 no Supabase.";
+        } else {
+          const { data, error } = await supabase
+            .from("visitors")
+            .insert({ ...payload, created_by: session?.user.id ?? null })
+            .select("id")
+            .single();
+          visitorId = data?.id ?? null;
+          if (error || !visitorId) errorMessage = "Não foi possível cadastrar o visitante. Rode o SQL 19 no Supabase.";
+        }
+
+        if (!errorMessage && visitorId && profile?.role === "lideranca") {
+          const { error } = await supabase.from("visitor_sensitive_data").upsert({
+            visitor_id: visitorId,
+            prayer_request: form.prayer_request.trim() || null,
+            notes: form.notes.trim() || null,
+            created_by: session?.user.id ?? null,
+            updated_by: session?.user.id ?? null
+          });
+          if (error) errorMessage = "Cadastro salvo, mas os dados pastorais não foram gravados. Rode o SQL 19 no Supabase.";
+        }
       }
     }
 
@@ -879,20 +917,25 @@ function UnifiedRegistryContent() {
                     value={form.how_heard}
                   />
                 </Field>
-                <Field label="Pedido de oração">
-                  <textarea
-                    className="field-input min-h-24 resize-y"
-                    onChange={(event) => setForm({ ...form, prayer_request: event.target.value })}
-                    value={form.prayer_request}
-                  />
-                </Field>
-                <Field label="Observações">
-                  <textarea
-                    className="field-input min-h-24 resize-y"
-                    onChange={(event) => setForm({ ...form, notes: event.target.value })}
-                    value={form.notes}
-                  />
-                </Field>
+                {profile?.role === "lideranca" ? (
+                  <div className="grid gap-4 rounded-card border border-forest/20 bg-forest/5 p-4">
+                    <p className="text-sm font-semibold text-ink">Área pastoral — somente liderança</p>
+                    <Field label="Pedido de oração">
+                      <textarea
+                        className="field-input min-h-24 resize-y"
+                        onChange={(event) => setForm({ ...form, prayer_request: event.target.value })}
+                        value={form.prayer_request}
+                      />
+                    </Field>
+                    <Field label="Observações pastorais">
+                      <textarea
+                        className="field-input min-h-24 resize-y"
+                        onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                        value={form.notes}
+                      />
+                    </Field>
+                  </div>
+                ) : null}
               </>
             ) : null}
 

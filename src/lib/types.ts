@@ -32,9 +32,17 @@ export type Visitor = {
   location: string | null;
   denomination: string | null;
   how_heard: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VisitorSensitiveData = {
+  visitor_id: string;
   prayer_request: string | null;
   notes: string | null;
   created_by: string | null;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -153,13 +161,25 @@ export type Database = {
           location?: string | null;
           denomination?: string | null;
           how_heard?: string | null;
-          prayer_request?: string | null;
-          notes?: string | null;
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
         Update: Partial<Omit<Visitor, "id" | "created_at">>;
+        Relationships: [];
+      };
+      visitor_sensitive_data: {
+        Row: VisitorSensitiveData;
+        Insert: {
+          visitor_id: string;
+          prayer_request?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+          updated_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Omit<VisitorSensitiveData, "visitor_id" | "created_at">>;
         Relationships: [];
       };
       pastors: {
