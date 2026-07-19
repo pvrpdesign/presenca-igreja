@@ -135,7 +135,7 @@ function DashboardContent() {
       .lte("service_date", todayInputValue())
       .order("service_date", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(2);
+      .limit(4);
 
     if (servicesError) {
       setAbsenceAlert(emptyAbsenceAlert);
@@ -178,6 +178,8 @@ function DashboardContent() {
       (member) => member.id
     );
 
+    const memberServices = recentServices.slice(0, 2);
+    const visitorServices = recentServices.slice(0, 4);
     const serviceIds = recentServices.map((service) => service.id);
     const { data: attendancesData, error: attendancesError } = await supabase
       .from("attendances")
@@ -203,7 +205,7 @@ function DashboardContent() {
     });
 
     const missedTwoMemberIds = activeMemberIds.filter((memberId) =>
-      recentServices.every((service) => !presentByService.get(`membro:${service.id}`)?.has(memberId))
+      memberServices.every((service) => !presentByService.get(`membro:${service.id}`)?.has(memberId))
     );
 
     const { data: visitorHistoryData } = await supabase
@@ -222,9 +224,14 @@ function DashboardContent() {
       )
     ];
 
-    const missedTwoVisitorIds = visitorIdsWithSaturdayHistory.filter((visitorId) =>
-      recentServices.every((service) => !presentByService.get(`visitante:${service.id}`)?.has(visitorId))
-    );
+    const missedTwoVisitorIds =
+      visitorServices.length < 4
+        ? []
+        : visitorIdsWithSaturdayHistory.filter((visitorId) =>
+            visitorServices.every(
+              (service) => !presentByService.get(`visitante:${service.id}`)?.has(visitorId)
+            )
+          );
 
     let accompaniedCount = 0;
 
@@ -455,8 +462,8 @@ function DashboardContent() {
                   </p>
                 ) : (
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    {absenceAlert.missedTwoMembersCount} membros ativos e{" "}
-                    {absenceAlert.missedTwoVisitorsCount} visitantes ficaram 2 sábados sem aparecer.
+                    {absenceAlert.missedTwoMembersCount} membros ativos estão há 2 sábados sem aparecer;{" "}
+                    {absenceAlert.missedTwoVisitorsCount} visitantes passaram de 3 sábados sem aparecer.
                     {" "}
                     {absenceAlert.pendingFollowUpsCount} pendentes de acompanhamento.
                     {absenceAlert.lastServiceText ? ` Último sábado: ${absenceAlert.lastServiceText}.` : ""}

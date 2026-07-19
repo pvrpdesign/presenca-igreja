@@ -111,6 +111,8 @@ create table if not exists public.attendances (
   service_date date not null,
   service_type public.service_type not null,
   registered_by uuid references auth.users(id) on delete set null,
+  followed_up_by uuid references auth.users(id) on delete set null,
+  followed_up_at timestamptz,
   created_at timestamptz not null default now(),
   constraint attendances_unique_service_person unique (service_id, person_type, person_id),
   constraint attendances_unique_date_type_person unique (service_date, service_type, person_type, person_id)
@@ -411,6 +413,14 @@ for delete
 to authenticated
 using (public.current_user_role() in ('recepcao', 'lideranca'));
 
+drop policy if exists "Leadership can update attendance followups" on public.attendances;
+create policy "Leadership can update attendance followups"
+on public.attendances
+for update
+to authenticated
+using (public.current_user_role() = 'lideranca')
+with check (public.current_user_role() = 'lideranca');
+
 drop policy if exists "Leadership can read member followups" on public.member_followups;
 create policy "Leadership can read member followups"
 on public.member_followups
@@ -578,5 +588,6 @@ grant select, insert, update, delete on public.pastors to authenticated;
 grant select, insert, update, delete on public.special_music to authenticated;
 grant select, insert, update, delete on public.services to authenticated;
 grant select, insert, delete on public.attendances to authenticated;
+grant update (followed_up_by, followed_up_at) on public.attendances to authenticated;
 grant select, insert, update on public.member_followups to authenticated;
 grant select, insert, update on public.visitor_followups to authenticated;

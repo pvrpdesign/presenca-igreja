@@ -80,6 +80,8 @@ export type Attendance = {
   service_date: string;
   service_type: ServiceType;
   registered_by: string | null;
+  followed_up_by: string | null;
+  followed_up_at: string | null;
   created_at: string;
 };
 
@@ -215,6 +217,8 @@ export type Database = {
           service_date: string;
           service_type: ServiceType;
           registered_by?: string | null;
+          followed_up_by?: string | null;
+          followed_up_at?: string | null;
           created_at?: string;
         };
         Update: Partial<Omit<Attendance, "id" | "created_at">>;

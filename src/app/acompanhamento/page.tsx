@@ -25,14 +25,25 @@ import type {
   FollowUpStatus,
   Member,
   MemberFollowUp,
+  Pastor,
   PersonType,
   Service,
+  SpecialMusic,
   Visitor,
   VisitorFollowUp
 } from "@/lib/types";
 
 type FollowMember = Pick<Member, "id" | "full_name" | "phone" | "neighborhood" | "ministry">;
 type FollowVisitor = Pick<Visitor, "id" | "full_name" | "phone" | "location">;
+type ReceptionGuest = {
+  attendanceId: string;
+  personId: string;
+  kind: "visitante" | "pastor" | "musica";
+  fullName: string;
+  contact: string | null;
+  detail: string | null;
+  followedUpAt: string | null;
+};
 type ServiceSummary = Pick<Service, "id" | "service_date" | "service_type" | "title">;
 type AttendanceSummary = Pick<
   Attendance,
@@ -96,7 +107,7 @@ const filterOptions: { label: string; value: FilterMode }[] = [
   { label: "Acompanhados", value: "acompanhados" },
   { label: "Membros", value: "membros" },
   { label: "Visitantes", value: "visitantes" },
-  { label: "3+ sábados", value: "criticos" }
+  { label: "Alertas de ausência", value: "criticos" }
 ];
 
 function onlyDigits(value: string) {
@@ -131,6 +142,10 @@ function presentKey(personType: PersonType, serviceId: string) {
   return `${personType}:${serviceId}`;
 }
 
+function isCritical(item: FollowUpItem) {
+  return item.kind === "visitante" ? item.absenceStreak > 3 : item.absenceStreak >= 3;
+}
+
 export default function FollowUpPage() {
   return (
     <AuthGate allowedRoles={["lideranca"]}>
@@ -153,7 +168,7 @@ function FollowUpContent() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [visitorServices, setVisitorServices] = useState<ServiceSummary[]>([]);
   const [selectedVisitorServiceId, setSelectedVisitorServiceId] = useState("");
-  const [visitorsByService, setVisitorsByService] = useState<Record<string, FollowVisitor[]>>({});
+  const [guestsByService, setGuestsByService] = useState<Record<string, ReceptionGuest[]>>({});
   const [isVisitorHistoryLoading, setIsVisitorHistoryLoading] = useState(true);
   const [visitorHistoryMessage, setVisitorHistoryMessage] = useState("");
 
@@ -171,7 +186,7 @@ function FollowUpContent() {
 
     if (servicesError) {
       setVisitorServices([]);
-      setVisitorsByService({});
+      setGuestsByService({});
       setVisitorHistoryMessage("Não foi possível carregar os visitantes por culto.");
       setIsVisitorHistoryLoading(false);
       return;
@@ -184,7 +199,7 @@ function FollowUpContent() {
     );
 
     if (services.length === 0) {
-      setVisitorsByService({});
+      setGuestsByService({});
       setIsVisitorHistoryLoading(false);
       return;
     }
@@ -192,58 +207,81 @@ function FollowUpContent() {
     const serviceIds = services.map((service) => service.id);
     const { data: attendanceData, error: attendanceError } = await supabase
       .from("attendances")
-      .select("person_id, service_id")
-      .eq("person_type", "visitante")
+      .select("id, person_id, person_type, service_id, followed_up_at")
+      .in("person_type", ["visitante", "pastor", "musica"])
       .in("service_id", serviceIds);
 
     if (attendanceError) {
-      setVisitorsByService({});
-      setVisitorHistoryMessage("Não foi possível carregar as presenças dos visitantes.");
+      setGuestsByService({});
+      setNeedsSqlSetup(true);
+      setVisitorHistoryMessage("Não foi possível carregar os acompanhamentos. Rode o SQL 18 no Supabase.");
       setIsVisitorHistoryLoading(false);
       return;
     }
 
-    const attendances = (attendanceData ?? []) as Pick<Attendance, "person_id" | "service_id">[];
-    const visitorIds = [...new Set(attendances.map((attendance) => attendance.person_id))];
+    const attendances = (attendanceData ?? []) as Pick<
+      Attendance,
+      "id" | "person_id" | "person_type" | "service_id" | "followed_up_at"
+    >[];
+    const visitorIds = [
+      ...new Set(
+        attendances
+          .filter((row) => row.person_type === "visitante")
+          .map((row) => row.person_id)
+      )
+    ];
+    const pastorIds = [
+      ...new Set(
+        attendances.filter((row) => row.person_type === "pastor").map((row) => row.person_id)
+      )
+    ];
+    const musicIds = [
+      ...new Set(
+        attendances.filter((row) => row.person_type === "musica").map((row) => row.person_id)
+      )
+    ];
 
-    if (visitorIds.length === 0) {
-      setVisitorsByService({});
+    if (attendances.length === 0) {
+      setGuestsByService({});
       setIsVisitorHistoryLoading(false);
       return;
     }
 
-    const { data: visitorsData, error: visitorsError } = await supabase
-      .from("visitors")
-      .select("id, full_name, phone, location")
-      .in("id", visitorIds)
-      .order("full_name", { ascending: true });
+    const [visitorsResponse, pastorsResponse, musicResponse] = await Promise.all([
+      visitorIds.length ? supabase.from("visitors").select("id, full_name, phone, location").in("id", visitorIds) : Promise.resolve({ data: [], error: null }),
+      pastorIds.length ? supabase.from("pastors").select("id, full_name, phone, district").in("id", pastorIds) : Promise.resolve({ data: [], error: null }),
+      musicIds.length ? supabase.from("special_music").select("id, performer_name, contact, church").in("id", musicIds) : Promise.resolve({ data: [], error: null })
+    ]);
 
-    if (visitorsError) {
-      setVisitorsByService({});
-      setVisitorHistoryMessage("Não foi possível carregar os dados dos visitantes.");
+    if (visitorsResponse.error || pastorsResponse.error || musicResponse.error) {
+      setGuestsByService({});
+      setVisitorHistoryMessage("Não foi possível carregar os dados dos convidados.");
       setIsVisitorHistoryLoading(false);
       return;
     }
 
     const visitorById = new Map(
-      ((visitorsData ?? []) as FollowVisitor[]).map((visitor) => [visitor.id, visitor])
+      ((visitorsResponse.data ?? []) as FollowVisitor[]).map((visitor) => [visitor.id, visitor])
     );
-    const visitorIdsByService = new Map<string, Set<string>>();
+    const pastorById = new Map(((pastorsResponse.data ?? []) as Pick<Pastor, "id" | "full_name" | "phone" | "district">[]).map((pastor) => [pastor.id, pastor]));
+    const musicById = new Map(((musicResponse.data ?? []) as Pick<SpecialMusic, "id" | "performer_name" | "contact" | "church">[]).map((music) => [music.id, music]));
 
-    attendances.forEach((attendance) => {
-      const serviceVisitorIds = visitorIdsByService.get(attendance.service_id) ?? new Set<string>();
-      serviceVisitorIds.add(attendance.person_id);
-      visitorIdsByService.set(attendance.service_id, serviceVisitorIds);
-    });
-
-    setVisitorsByService(
+    setGuestsByService(
       Object.fromEntries(
         services.map((service) => [
           service.id,
-          [...(visitorIdsByService.get(service.id) ?? [])]
-            .map((visitorId) => visitorById.get(visitorId))
-            .filter((visitor): visitor is FollowVisitor => Boolean(visitor))
-            .sort((a, b) => a.full_name.localeCompare(b.full_name, "pt-BR"))
+          attendances.filter((row) => row.service_id === service.id).map((row): ReceptionGuest | null => {
+            if (row.person_type === "visitante") {
+              const person = visitorById.get(row.person_id);
+              return person ? { attendanceId: row.id, personId: row.person_id, kind: "visitante", fullName: person.full_name, contact: person.phone, detail: person.location, followedUpAt: row.followed_up_at } : null;
+            }
+            if (row.person_type === "pastor") {
+              const person = pastorById.get(row.person_id);
+              return person ? { attendanceId: row.id, personId: row.person_id, kind: "pastor", fullName: person.full_name, contact: person.phone, detail: person.district, followedUpAt: row.followed_up_at } : null;
+            }
+            const person = musicById.get(row.person_id);
+            return person ? { attendanceId: row.id, personId: row.person_id, kind: "musica", fullName: person.performer_name, contact: person.contact, detail: person.church, followedUpAt: row.followed_up_at } : null;
+          }).filter((guest): guest is ReceptionGuest => Boolean(guest)).sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR"))
         ])
       )
     );
@@ -487,11 +525,11 @@ function FollowUpContent() {
   const selectedVisitorService = visitorServices.find(
     (service) => service.id === selectedVisitorServiceId
   );
-  const selectedServiceVisitors = visitorsByService[selectedVisitorServiceId] ?? [];
+  const selectedServiceGuests = guestsByService[selectedVisitorServiceId] ?? [];
 
   const stats = useMemo(() => {
     const accompanied = items.filter((item) => item.followUp?.status === "acompanhado").length;
-    const critical = items.filter((item) => item.absenceStreak >= 3).length;
+    const critical = items.filter(isCritical).length;
 
     return {
       total: items.length,
@@ -512,7 +550,7 @@ function FollowUpContent() {
         filter === "todos" ||
         (filter === "pendentes" && !isAccompanied) ||
         (filter === "acompanhados" && isAccompanied) ||
-        (filter === "criticos" && item.absenceStreak >= 3) ||
+        (filter === "criticos" && isCritical(item)) ||
         (filter === "membros" && item.kind === "membro") ||
         (filter === "visitantes" && item.kind === "visitante");
 
@@ -644,6 +682,30 @@ function FollowUpContent() {
     [loadFollowUps, notesByItem, session?.user.id]
   );
 
+  const toggleReceptionFollowUp = useCallback(async (guest: ReceptionGuest) => {
+    if (!session?.user.id) return;
+    setSavingId(`attendance:${guest.attendanceId}`);
+    setMessage("");
+
+    const completed = !guest.followedUpAt;
+    const { error } = await supabase
+      .from("attendances")
+      .update({
+        followed_up_at: completed ? new Date().toISOString() : null,
+        followed_up_by: completed ? session.user.id : null
+      })
+      .eq("id", guest.attendanceId);
+
+    if (error) {
+      setNeedsSqlSetup(true);
+      setMessage("Não foi possível marcar o acompanhamento. Rode o SQL 18 no Supabase.");
+    } else {
+      setMessage(completed ? "Acompanhamento marcado como realizado." : "Acompanhamento reaberto.");
+      await loadVisitorsByService();
+    }
+    setSavingId(null);
+  }, [loadVisitorsByService, session?.user.id]);
+
   return (
     <div>
       <PageHeader
@@ -681,20 +743,20 @@ function FollowUpContent() {
         <MetricCard icon={ShieldCheck} label="Acompanhados" value={stats.accompanied} />
         <MetricCard icon={UsersRound} label="Membros" value={stats.members} />
         <MetricCard icon={UserRoundPlus} label="Visitantes" tone="wine" value={stats.visitors} />
-        <MetricCard icon={AlertCircle} label="Com 3+ sábados" tone="gold" value={stats.critical} />
+        <MetricCard icon={AlertCircle} label="Alertas de ausência" tone="gold" value={stats.critical} />
       </section>
 
       <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-medium text-muted">Recepção e boas-vindas</p>
-            <h2 className="mt-1 text-xl font-semibold text-ink">Visitantes por culto</h2>
+            <h2 className="mt-1 text-xl font-semibold text-ink">Convidados por culto</h2>
             <p className="mt-1 text-sm text-muted">
-              Selecione um culto para agradecer aos visitantes que estiveram presentes.
+              Marque quando o visitante, pastor ou música especial já recebeu acompanhamento.
             </p>
           </div>
-          <StatusBadge tone={selectedServiceVisitors.length > 0 ? "success" : "neutral"}>
-            {selectedServiceVisitors.length} visitantes
+          <StatusBadge tone={selectedServiceGuests.length > 0 ? "success" : "neutral"}>
+            {selectedServiceGuests.filter((guest) => guest.followedUpAt).length}/{selectedServiceGuests.length} acompanhados
           </StatusBadge>
         </div>
 
@@ -721,45 +783,41 @@ function FollowUpContent() {
           <Notice title="Carregando visitantes dos cultos..." />
         ) : !selectedVisitorService ? (
           <Notice title="Nenhum culto encontrado" text="Cadastre um culto para iniciar o acompanhamento." />
-        ) : selectedServiceVisitors.length === 0 ? (
+        ) : selectedServiceGuests.length === 0 ? (
           <Notice
-            title="Nenhum visitante neste culto"
-            text="Os visitantes aparecerão aqui depois que a presença for registrada."
+            title="Nenhum convidado neste culto"
+            text="Visitantes, pastores e músicas especiais aparecerão aqui após a presença ser registrada."
           />
         ) : (
           <div className="grid gap-3 lg:grid-cols-2">
-            {selectedServiceVisitors.map((visitor) => {
+            {selectedServiceGuests.map((guest) => {
               const whatsappUrl = getThankYouWhatsAppUrl(
-                visitor.phone,
-                visitor.full_name,
-                "visitante"
+                guest.contact,
+                guest.fullName,
+                guest.kind
               );
+              const isAccompanied = Boolean(guest.followedUpAt);
+              const kindLabel = guest.kind === "visitante" ? "Visitante" : guest.kind === "pastor" ? "Pastor/Pregador" : "Música Especial";
 
               return (
-                <article className="rounded-card border border-line bg-paper p-4" key={visitor.id}>
+                <article className={`rounded-card border bg-paper p-4 ${isAccompanied ? "border-forest/30" : "border-line"}`} key={guest.attendanceId}>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <p className="font-semibold text-ink">{visitor.full_name}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-ink">{guest.fullName}</p>
+                        <StatusBadge tone={isAccompanied ? "success" : "warning"}>{isAccompanied ? "Acompanhado" : "Pendente"}</StatusBadge>
+                      </div>
                       <p className="mt-1 text-sm text-muted">
-                        {visitor.phone || "Sem telefone"} • {visitor.location || "Sem cidade/bairro"}
+                        {kindLabel} • {guest.contact || "Sem contato"} • {guest.detail || "Sem local informado"}
                       </p>
                     </div>
-                    {whatsappUrl ? (
-                      <a
-                        className="primary-button shrink-0"
-                        href={whatsappUrl}
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        <MessageCircle aria-hidden="true" size={17} />
-                        Agradecer
-                      </a>
-                    ) : (
-                      <button className="secondary-button shrink-0" disabled type="button">
-                        <MessageCircle aria-hidden="true" size={17} />
-                        Sem WhatsApp
+                    <div className="flex flex-wrap gap-2">
+                      {whatsappUrl ? <a className="secondary-button shrink-0" href={whatsappUrl} rel="noreferrer" target="_blank"><MessageCircle aria-hidden="true" size={17} />Mensagem</a> : null}
+                      <button className={isAccompanied ? "secondary-button" : "primary-button"} disabled={savingId === `attendance:${guest.attendanceId}`} onClick={() => toggleReceptionFollowUp(guest)} type="button">
+                        <CheckCircle2 aria-hidden="true" size={17} />
+                        {isAccompanied ? "Reabrir" : "Marcar acompanhado"}
                       </button>
-                    )}
+                    </div>
                   </div>
                 </article>
               );
@@ -773,7 +831,7 @@ function FollowUpContent() {
           <Notice
             tone="warning"
             title="Atualização do Supabase pendente"
-            text="Rode o arquivo supabase/12_visitor_followups.sql no SQL Editor para ativar acompanhamento de visitantes."
+            text="Rode os arquivos SQL indicados na mensagem (incluindo supabase/18_attendance_followups.sql) no SQL Editor."
           />
         </div>
       ) : null}
@@ -849,7 +907,7 @@ function FollowUpContent() {
                 className={`rounded-card border bg-white p-4 shadow-soft sm:p-5 ${
                   isAccompanied
                     ? "border-forest/25"
-                    : item.absenceStreak >= 3
+                    : isCritical(item)
                       ? "border-wine/30"
                       : "border-line"
                 }`}
@@ -862,7 +920,7 @@ function FollowUpContent() {
                       {personLabel} • {detailText}
                     </p>
                   </div>
-                  <StatusBadge tone={isAccompanied ? "success" : item.absenceStreak >= 3 ? "danger" : "warning"}>
+                  <StatusBadge tone={isAccompanied ? "success" : isCritical(item) ? "danger" : "warning"}>
                     {isAccompanied ? "Acompanhado" : `${item.absenceStreak} sábados`}
                   </StatusBadge>
                 </div>
