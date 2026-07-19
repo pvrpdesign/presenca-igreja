@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit3, FileDown, MessageCircle, Save, Search, Trash2, UserPlus, X } from "lucide-react";
+import { Edit3, FileDown, FileText, MessageCircle, Save, Search, Trash2, UserPlus, X } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
@@ -540,6 +541,12 @@ function VisitorsContent() {
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col gap-2">
+                      {profile?.role === "lideranca" ? (
+                        <Link className="secondary-button min-h-9 px-3 py-2" href={`/pessoas/visitante/${visitor.id}`}>
+                          <FileText aria-hidden="true" size={15} />
+                          Ver ficha
+                        </Link>
+                      ) : null}
                       {whatsappUrl ? (
                         <a
                           className="primary-button min-h-9 px-3 py-2"

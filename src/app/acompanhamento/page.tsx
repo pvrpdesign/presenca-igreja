@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -1080,7 +1081,11 @@ function FollowUpContent() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-ink">{guest.fullName}</p>
+                        {guest.kind === "visitante" ? (
+                          <Link className="font-semibold text-ink hover:text-wine hover:underline" href={`/pessoas/visitante/${guest.personId}`}>
+                            {guest.fullName}
+                          </Link>
+                        ) : <p className="font-semibold text-ink">{guest.fullName}</p>}
                         <StatusBadge tone={isAccompanied ? "success" : "warning"}>
                           {isAccompanied ? (isThankYou ? "Agradecimento feito" : "Acompanhado") : "Pendente"}
                         </StatusBadge>
@@ -1204,7 +1209,11 @@ function FollowUpContent() {
               >
                 <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h2 className="text-lg font-semibold text-ink">{item.full_name}</h2>
+                    <h2 className="text-lg font-semibold text-ink">
+                      <Link className="hover:text-wine hover:underline" href={`/pessoas/${item.kind}/${item.id}`}>
+                        {item.full_name}
+                      </Link>
+                    </h2>
                     <p className="mt-1 text-sm text-muted">
                       {personLabel} • {detailText}
                     </p>

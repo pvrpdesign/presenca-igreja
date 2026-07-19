@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   Edit3,
   FileDown,
+  FileText,
   FileSpreadsheet,
   Save,
   Search,
@@ -773,6 +775,12 @@ function MembersContent() {
                       <StatusBadge tone={member.status === "ativo" ? "success" : "warning"}>
                         {member.status}
                       </StatusBadge>
+                      {profile?.role === "lideranca" ? (
+                        <Link className="secondary-button min-h-9 px-3 py-2" href={`/pessoas/membro/${member.id}`}>
+                          <FileText aria-hidden="true" size={15} />
+                          Ver ficha
+                        </Link>
+                      ) : null}
                       <button
                         className="secondary-button min-h-9 px-3 py-2"
                         onClick={() => startEdit(member)}
