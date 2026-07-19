@@ -10,6 +10,7 @@ import {
   HeartHandshake,
   Home,
   LogOut,
+  ShieldCheck,
   UserPlus
 } from "lucide-react";
 import clsx from "clsx";
@@ -28,6 +29,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, signOut } = useAuth();
+  const visibleNavigation = profile?.is_admin
+    ? [...navigation, { href: "/usuarios", label: "Usuários", icon: ShieldCheck }]
+    : navigation;
 
   async function handleSignOut() {
     await signOut();
@@ -56,13 +60,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 IASD Calçada
               </span>
               <span className="block truncate text-xs text-muted">
-                {profile?.role === "lideranca" ? "Liderança" : "Recepção"}
+                {profile?.is_admin ? "Administrador" : profile?.role === "lideranca" ? "Liderança" : "Recepção"}
               </span>
             </span>
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex" aria-label="Principal">
-            {navigation.map((item) => {
+            {visibleNavigation.map((item) => {
               const Icon = item.icon;
               const active = pathname === item.href;
               return (
@@ -116,8 +120,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         aria-label="Principal"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white md:hidden"
       >
-        <div className="grid grid-cols-6">
-          {navigation.map((item) => {
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${visibleNavigation.length}, minmax(0, 1fr))` }}>
+          {visibleNavigation.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
             return (

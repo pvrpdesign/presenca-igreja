@@ -62,23 +62,9 @@ NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL=liderancaiasdcalcada@gmail.com
 
 Cole cada arquivo inteiro no SQL Editor e execute. Não execute começando no meio do arquivo.
 
-7. Crie usuários em Authentication > Users.
+7. Execute `supabase/21_user_approval.sql` em projetos existentes. Depois disso, novos usuários solicitam acesso pela página de login e ficam bloqueados até a aprovação do administrador em `/usuarios`.
 
-Para criar um usuário de recepção, use metadata:
-
-```json
-{
-  "full_name": "Recepção"
-}
-```
-
-Todo usuário novo começa como `recepcao`. Para transformar um usuário em liderança, ajuste o perfil pelo SQL Editor:
-
-```sql
-update public.profiles
-set role = 'lideranca'
-where id = 'uuid-do-usuario';
-```
+O administrador inicial é associado ao usuário com e-mail `liderancaiasdcalcada@gmail.com`. Se o e-mail administrativo for outro, altere-o no final do SQL 21 antes de executar.
 
 8. Rode o app:
 
@@ -126,6 +112,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/17_member_qr_checkin.sql` para ativar o check-in de membros por QR Code
 - `supabase/19_visitor_sensitive_data.sql` para restringir pedidos de oração e observações pastorais à liderança
 - `supabase/20_export_audit_logs.sql` para registrar e controlar exportações de dados pessoais
+- `supabase/21_user_approval.sql` para ativar cadastro público, aprovação e administrador inicial
 
 Eles criam:
 

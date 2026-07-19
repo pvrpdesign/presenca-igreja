@@ -45,7 +45,7 @@ function readCachedProfile(userId: string) {
     if (!rawProfile) return null;
 
     const cachedProfile = JSON.parse(rawProfile) as Profile;
-    return cachedProfile.id === userId ? cachedProfile : null;
+    return cachedProfile.id === userId && cachedProfile.approval_status ? cachedProfile : null;
   } catch {
     return null;
   }
@@ -72,7 +72,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadProfile = useCallback(async (userId: string) => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, full_name, role, created_at")
+      .select(
+        "id, full_name, email, role, requested_role, approval_status, is_admin, approved_by, approved_at, created_at"
+      )
       .eq("id", userId)
       .maybeSingle();
 

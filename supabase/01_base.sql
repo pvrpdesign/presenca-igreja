@@ -36,7 +36,13 @@ end;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
+  email text,
   role public.user_role not null default 'recepcao',
+  requested_role public.user_role not null default 'recepcao',
+  approval_status text not null default 'pendente' check (approval_status in ('pendente', 'aprovado', 'rejeitado')),
+  is_admin boolean not null default false,
+  approved_by uuid references auth.users(id) on delete set null,
+  approved_at timestamptz,
   created_at timestamptz not null default now()
 );
 

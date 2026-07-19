@@ -36,7 +36,13 @@ end;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
+  email text,
   role public.user_role not null default 'recepcao',
+  requested_role public.user_role not null default 'recepcao',
+  approval_status text not null default 'pendente' check (approval_status in ('pendente', 'aprovado', 'rejeitado')),
+  is_admin boolean not null default false,
+  approved_by uuid references auth.users(id) on delete set null,
+  approved_at timestamptz,
   created_at timestamptz not null default now()
 );
 
@@ -228,12 +234,22 @@ before update on public.visitor_sensitive_data
 for each row execute function public.set_updated_at();
 
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as '
+declare
+  requested_role public.user_role := case
+    when new.raw_user_meta_data ->> ''requested_role'' = ''lideranca''
+      then ''lideranca''::public.user_role
+    else ''recepcao''::public.user_role
+  end;
 begin
-  insert into public.profiles (id, full_name, role)
+  insert into public.profiles (id, full_name, email, role, requested_role, approval_status, is_admin)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data ->> ''full_name'', new.email),
-    ''recepcao''
+    coalesce(nullif(trim(new.raw_user_meta_data ->> ''full_name''), ''''), new.email),
+    new.email,
+    requested_role,
+    requested_role,
+    ''pendente'',
+    false
   )
   on conflict (id) do nothing;
 
@@ -247,7 +263,11 @@ after insert on auth.users
 for each row execute function public.handle_new_user();
 
 create or replace function public.current_user_role() returns public.user_role language sql stable security definer set search_path = public as '
-  select role from public.profiles where id = auth.uid()
+  select role from public.profiles where id = auth.uid() and approval_status = ''aprovado''
+';
+
+create or replace function public.current_user_is_admin() returns boolean language sql stable security definer set search_path = public as '
+  select coalesce((select is_admin from public.profiles where id = auth.uid() and approval_status = ''aprovado''), false)
 ';
 
 alter table public.profiles enable row level security;
@@ -267,7 +287,13 @@ create policy "Users can read own profile"
 on public.profiles
 for select
 to authenticated
-using (id = auth.uid() or public.current_user_role() = 'lideranca');
+using (id = auth.uid() or public.current_user_is_admin());
+
+drop policy if exists "Administrators can update profiles" on public.profiles;
+create policy "Administrators can update profiles"
+on public.profiles for update to authenticated
+using (public.current_user_is_admin())
+with check (public.current_user_is_admin());
 
 drop policy if exists "Users can register own exports" on public.export_audit_logs;
 create policy "Users can register own exports"
@@ -641,7 +667,7 @@ grant execute on function public.get_member_checkin_service(uuid) to anon, authe
 grant execute on function public.register_member_self_checkin(uuid, text) to anon, authenticated;
 
 grant usage on schema public to anon, authenticated;
-grant select on public.profiles to authenticated;
+grant select, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.members to authenticated;
 grant select, insert, update, delete on public.visitors to authenticated;
 grant select, insert, update, delete on public.pastors to authenticated;

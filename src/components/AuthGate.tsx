@@ -10,14 +10,16 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export function AuthGate({
   allowedRoles,
+  requireAdmin = false,
   children
 }: {
   allowedRoles?: UserRole[];
+  requireAdmin?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { authError, isLoading, session, profile } = useAuth();
+  const { authError, isLoading, session, profile, signOut } = useAuth();
 
   useEffect(() => {
     if (!isLoading && !session && !authError && isSupabaseConfigured) {
@@ -65,6 +67,48 @@ export function AuthGate({
         title="Perfil não encontrado"
         text="Crie um registro em public.profiles para este usuário ou execute novamente o schema SQL."
       />
+    );
+  }
+
+  if (profile.approval_status !== "aprovado") {
+    const wasRejected = profile.approval_status === "rejeitado";
+    return (
+      <SetupPanel
+        action={
+          <button
+            className="secondary-button mt-5 w-full"
+            onClick={async () => {
+              await signOut();
+              router.replace("/login");
+            }}
+            type="button"
+          >
+            Sair
+          </button>
+        }
+        title={wasRejected ? "Solicitação não aprovada" : "Aguardando aprovação"}
+        text={
+          wasRejected
+            ? "Seu pedido de acesso não foi aprovado. Entre em contato com o administrador do sistema para mais informações."
+            : "Seu cadastro foi recebido e ainda precisa ser aprovado pelo administrador. Você poderá acessar o sistema depois da aprovação."
+        }
+      />
+    );
+  }
+
+  if (requireAdmin && !profile.is_admin) {
+    return (
+      <AppShell>
+        <div className="rounded-card border border-line bg-white p-5 shadow-soft">
+          <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-card bg-wine/10 text-wine">
+            <ShieldAlert aria-hidden="true" size={22} />
+          </div>
+          <h1 className="text-xl font-semibold text-ink">Acesso do administrador</h1>
+          <p className="mt-2 max-w-xl text-sm text-muted">
+            Somente o administrador pode aprovar ou rejeitar cadastros de usuários.
+          </p>
+        </div>
+      </AppShell>
     );
   }
 

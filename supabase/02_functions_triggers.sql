@@ -41,12 +41,22 @@ before update on public.visitor_sensitive_data
 for each row execute function public.set_updated_at();
 
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as '
+declare
+  requested_role public.user_role := case
+    when new.raw_user_meta_data ->> ''requested_role'' = ''lideranca''
+      then ''lideranca''::public.user_role
+    else ''recepcao''::public.user_role
+  end;
 begin
-  insert into public.profiles (id, full_name, role)
+  insert into public.profiles (id, full_name, email, role, requested_role, approval_status, is_admin)
   values (
     new.id,
-    coalesce(new.raw_user_meta_data ->> ''full_name'', new.email),
-    ''recepcao''
+    coalesce(nullif(trim(new.raw_user_meta_data ->> ''full_name''), ''''), new.email),
+    new.email,
+    requested_role,
+    requested_role,
+    ''pendente'',
+    false
   )
   on conflict (id) do nothing;
 
@@ -60,5 +70,9 @@ after insert on auth.users
 for each row execute function public.handle_new_user();
 
 create or replace function public.current_user_role() returns public.user_role language sql stable security definer set search_path = public as '
-  select role from public.profiles where id = auth.uid()
+  select role from public.profiles where id = auth.uid() and approval_status = ''aprovado''
+';
+
+create or replace function public.current_user_is_admin() returns boolean language sql stable security definer set search_path = public as '
+  select coalesce((select is_admin from public.profiles where id = auth.uid() and approval_status = ''aprovado''), false)
 ';

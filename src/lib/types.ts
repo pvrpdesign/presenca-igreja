@@ -1,4 +1,5 @@
 export type UserRole = "recepcao" | "lideranca";
+export type ApprovalStatus = "pendente" | "aprovado" | "rejeitado";
 export type MemberStatus = "ativo" | "afastado" | "transferido";
 export type SpeakerRole = "pastor" | "pregador";
 export type ServiceType = "quarta" | "sabado" | "especial";
@@ -8,7 +9,13 @@ export type FollowUpStatus = "pendente" | "acompanhado" | "removido";
 export type Profile = {
   id: string;
   full_name: string | null;
+  email: string | null;
   role: UserRole;
+  requested_role: UserRole;
+  approval_status: ApprovalStatus;
+  is_admin: boolean;
+  approved_by: string | null;
+  approved_at: string | null;
   created_at: string;
 };
 
@@ -141,7 +148,13 @@ export type Database = {
         Insert: {
           id: string;
           full_name?: string | null;
+          email?: string | null;
           role?: UserRole;
+          requested_role?: UserRole;
+          approval_status?: ApprovalStatus;
+          is_admin?: boolean;
+          approved_by?: string | null;
+          approved_at?: string | null;
           created_at?: string;
         };
         Update: Partial<Omit<Profile, "id" | "created_at">>;

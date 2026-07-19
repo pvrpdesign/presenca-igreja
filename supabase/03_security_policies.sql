@@ -15,7 +15,13 @@ create policy "Users can read own profile"
 on public.profiles
 for select
 to authenticated
-using (id = auth.uid() or public.current_user_role() = 'lideranca');
+using (id = auth.uid() or public.current_user_is_admin());
+
+drop policy if exists "Administrators can update profiles" on public.profiles;
+create policy "Administrators can update profiles"
+on public.profiles for update to authenticated
+using (public.current_user_is_admin())
+with check (public.current_user_is_admin());
 
 drop policy if exists "Users can register own exports" on public.export_audit_logs;
 create policy "Users can register own exports"
@@ -266,7 +272,7 @@ on public.visitor_sensitive_data for delete to authenticated
 using (public.current_user_role() = 'lideranca');
 
 grant usage on schema public to anon, authenticated;
-grant select on public.profiles to authenticated;
+grant select, update on public.profiles to authenticated;
 grant select, insert, update, delete on public.members to authenticated;
 grant select, insert, update, delete on public.visitors to authenticated;
 grant select, insert, update, delete on public.pastors to authenticated;
