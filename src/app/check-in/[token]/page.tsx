@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { CheckCircle2, Church, LoaderCircle, Phone, ShieldCheck } from "lucide-react";
 import { useParams } from "next/navigation";
 import { Field, Notice } from "@/components/ui";
@@ -170,9 +171,14 @@ export default function MemberCheckinPage() {
           )}
         </section>
 
-        <div className="mt-4 flex items-center justify-center gap-2 text-center text-xs leading-5 text-muted">
-          <ShieldCheck aria-hidden="true" className="shrink-0" size={16} />
-          Seu telefone é usado apenas para localizar seu cadastro de membro.
+        <div className="mt-4 text-center text-xs leading-5 text-muted">
+          <p className="flex items-center justify-center gap-2">
+            <ShieldCheck aria-hidden="true" className="shrink-0" size={16} />
+            Seu telefone é usado apenas para localizar seu cadastro de membro.
+          </p>
+          <Link className="mt-2 inline-block font-semibold text-forest underline" href="/privacidade">
+            Aviso de Privacidade e canal de atendimento
+          </Link>
         </div>
       </div>
     </main>

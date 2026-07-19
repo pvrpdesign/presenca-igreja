@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LogIn } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -115,6 +116,13 @@ function LoginForm() {
             {isSubmitting ? "Entrando..." : "Entrar"}
           </button>
         </form>
+        <p className="mt-5 text-center text-xs leading-5 text-muted">
+          Ao utilizar este sistema, consulte nosso{" "}
+          <Link className="font-semibold text-forest underline" href="/privacidade">
+            Aviso de Privacidade
+          </Link>
+          .
+        </p>
       </section>
     </main>
   );

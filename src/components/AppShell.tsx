@@ -105,6 +105,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <main className="mx-auto max-w-6xl px-4 pb-24 pt-5 sm:pt-7 md:pb-10">
         {children}
+        <footer className="mt-10 border-t border-line py-5 text-center text-xs text-muted">
+          <Link className="font-semibold text-forest underline" href="/privacidade">
+            Aviso de Privacidade e canal de atendimento
+          </Link>
+        </footer>
       </main>
 
       <nav
