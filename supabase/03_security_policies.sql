@@ -8,6 +8,7 @@ alter table public.attendances enable row level security;
 alter table public.member_followups enable row level security;
 alter table public.visitor_followups enable row level security;
 alter table public.visitor_sensitive_data enable row level security;
+alter table public.export_audit_logs enable row level security;
 
 drop policy if exists "Users can read own profile" on public.profiles;
 create policy "Users can read own profile"
@@ -15,6 +16,16 @@ on public.profiles
 for select
 to authenticated
 using (id = auth.uid() or public.current_user_role() = 'lideranca');
+
+drop policy if exists "Users can register own exports" on public.export_audit_logs;
+create policy "Users can register own exports"
+on public.export_audit_logs for insert to authenticated
+with check (user_id = auth.uid() and user_role = public.current_user_role()::text);
+
+drop policy if exists "Leadership can read export audit logs" on public.export_audit_logs;
+create policy "Leadership can read export audit logs"
+on public.export_audit_logs for select to authenticated
+using (public.current_user_role() = 'lideranca');
 
 drop policy if exists "Reception and leadership can read members" on public.members;
 create policy "Reception and leadership can read members"
@@ -265,3 +276,4 @@ grant select, insert, delete on public.attendances to authenticated;
 grant select, insert, update on public.member_followups to authenticated;
 grant select, insert, update on public.visitor_followups to authenticated;
 grant select, insert, update, delete on public.visitor_sensitive_data to authenticated;
+grant select, insert on public.export_audit_logs to authenticated;

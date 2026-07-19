@@ -7,6 +7,7 @@ import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
+import { authorizeDataExport } from "@/lib/exportAudit";
 import { supabase } from "@/lib/supabase";
 import type { Visitor, VisitorSensitiveData } from "@/lib/types";
 import { getThankYouWhatsAppUrl } from "@/lib/whatsapp";
@@ -269,7 +270,18 @@ function VisitorsContent() {
   }
 
   async function handleDownloadVisitorsExcel() {
-    await downloadExcelWorkbook(datedFileName("visitantes", "xlsx"), [
+    const fileName = datedFileName("visitantes", "xlsx");
+    const authorized = await authorizeDataExport({
+      userId: session?.user.id,
+      userRole: profile?.role,
+      exportType: profile?.role === "lideranca" ? "visitantes_completo" : "visitantes_reduzido",
+      fileName,
+      recordCount: filteredVisitors.length,
+      filters
+    });
+    if (!authorized) return;
+
+    await downloadExcelWorkbook(fileName, [
       {
         name: "Visitantes",
         rows: filteredVisitors.map((visitor) => ({

@@ -75,6 +75,18 @@ create table if not exists public.visitor_sensitive_data (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.export_audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  user_role text not null check (user_role in ('recepcao', 'lideranca')),
+  export_type text not null,
+  file_name text not null,
+  purpose text not null check (char_length(trim(purpose)) >= 5),
+  record_count integer not null check (record_count >= 0),
+  filters jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.pastors (
   id uuid primary key default gen_random_uuid(),
   full_name text not null,
@@ -170,6 +182,8 @@ create index if not exists member_followups_member_idx on public.member_followup
 create index if not exists member_followups_service_status_idx on public.member_followups (last_service_id, status);
 create index if not exists visitor_followups_visitor_idx on public.visitor_followups (visitor_id);
 create index if not exists visitor_followups_service_status_idx on public.visitor_followups (last_service_id, status);
+create index if not exists export_audit_logs_created_at_idx on public.export_audit_logs (created_at desc);
+create index if not exists export_audit_logs_user_idx on public.export_audit_logs (user_id, created_at desc);
 
 create or replace function public.set_updated_at() returns trigger language plpgsql as '
 begin
@@ -246,6 +260,7 @@ alter table public.attendances enable row level security;
 alter table public.member_followups enable row level security;
 alter table public.visitor_followups enable row level security;
 alter table public.visitor_sensitive_data enable row level security;
+alter table public.export_audit_logs enable row level security;
 
 drop policy if exists "Users can read own profile" on public.profiles;
 create policy "Users can read own profile"
@@ -253,6 +268,16 @@ on public.profiles
 for select
 to authenticated
 using (id = auth.uid() or public.current_user_role() = 'lideranca');
+
+drop policy if exists "Users can register own exports" on public.export_audit_logs;
+create policy "Users can register own exports"
+on public.export_audit_logs for insert to authenticated
+with check (user_id = auth.uid() and user_role = public.current_user_role()::text);
+
+drop policy if exists "Leadership can read export audit logs" on public.export_audit_logs;
+create policy "Leadership can read export audit logs"
+on public.export_audit_logs for select to authenticated
+using (public.current_user_role() = 'lideranca');
 
 drop policy if exists "Reception and leadership can read members" on public.members;
 create policy "Reception and leadership can read members"
@@ -627,3 +652,4 @@ grant update (followed_up_by, followed_up_at) on public.attendances to authentic
 grant select, insert, update on public.member_followups to authenticated;
 grant select, insert, update on public.visitor_followups to authenticated;
 grant select, insert, update, delete on public.visitor_sensitive_data to authenticated;
+grant select, insert on public.export_audit_logs to authenticated;

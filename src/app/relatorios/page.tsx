@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CalendarClock,
+  ClipboardList,
   FileDown,
   RefreshCw,
   Search,
@@ -14,17 +15,21 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
+import { useAuth } from "@/contexts/AuthContext";
 import { formatDateBR, SERVICE_LABELS, todayInputValue } from "@/lib/date";
 import { datedFileName, downloadSimplePdf } from "@/lib/exports";
+import { authorizeDataExport } from "@/lib/exportAudit";
 import { supabase } from "@/lib/supabase";
 import type {
   Attendance,
+  ExportAuditLog,
   Member,
   Pastor,
   Service,
   ServiceType,
   SpecialMusic,
-  Visitor
+  Visitor,
+  Profile
 } from "@/lib/types";
 
 type ReportMember = Pick<
@@ -197,6 +202,7 @@ export default function ReportsPage() {
 }
 
 function ReportsContent() {
+  const { profile, session } = useAuth();
   const [reports, setReports] = useState<Reports>(emptyReports);
   const [filters, setFilters] = useState<ReportFilters>(emptyReportFilters);
   const [reportStartDate, setReportStartDate] = useState(dateInputDaysAgo(30));
@@ -205,6 +211,36 @@ function ReportsContent() {
   const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>("todos");
   const [periodMessage, setPeriodMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [exportLogs, setExportLogs] = useState<ExportAuditLog[]>([]);
+  const [exportUserNames, setExportUserNames] = useState<Record<string, string>>({});
+
+  const loadExportLogs = useCallback(async () => {
+    const { data } = await supabase
+      .from("export_audit_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    const logs = (data ?? []) as ExportAuditLog[];
+    setExportLogs(logs);
+
+    const userIds = [...new Set(logs.map((log) => log.user_id).filter((id): id is string => Boolean(id)))];
+    if (userIds.length === 0) {
+      setExportUserNames({});
+      return;
+    }
+    const { data: profilesData } = await supabase
+      .from("profiles")
+      .select("id, full_name")
+      .in("id", userIds);
+    setExportUserNames(
+      Object.fromEntries(
+        ((profilesData ?? []) as Pick<Profile, "id" | "full_name">[]).map((item) => [
+          item.id,
+          item.full_name || "Usuário sem nome"
+        ])
+      )
+    );
+  }, []);
 
   const lastServiceText = useMemo(() => {
     if (!reports.lastService) return "Nenhum sábado registrado";
@@ -326,7 +362,7 @@ function ReportsContent() {
             ? "Música Especial usa a data em que o cantor, cantora ou grupo esteve na igreja."
             : "Faltas de membros consideram apenas sábados. Visitantes e pastores usam as presenças. Música Especial usa a data da participação.";
 
-  function handleDownloadPdf() {
+  async function handleDownloadPdf() {
     const memberLine = (member: ReportMember) =>
       `${member.full_name} | ${member.phone || "Sem telefone"} | ${
         member.ministry || "Sem ministério"
@@ -394,12 +430,30 @@ function ReportsContent() {
         : [])
     ];
 
+    const fileName = datedFileName("relatorios-presenca", "pdf");
+    const recordCount = sections.reduce((total, section) => total + section.lines.length, 0);
+    const authorized = await authorizeDataExport({
+      userId: session?.user.id,
+      userRole: profile?.role,
+      exportType: "relatorio_presenca_completo",
+      fileName,
+      recordCount,
+      filters: {
+        inicio: reportStartDate,
+        fim: reportEndDate,
+        culto: reportServiceType,
+        publico: audienceFilter
+      }
+    });
+    if (!authorized) return;
+
     downloadSimplePdf({
-      fileName: datedFileName("relatorios-presenca", "pdf"),
+      fileName,
       title: `Relatórios de presença - ${audienceLabel}`,
       subtitle: `${periodText} | Último sábado: ${lastServiceText}`,
       sections
     });
+    await loadExportLogs();
   }
 
   const loadReports = useCallback(async () => {
@@ -623,6 +677,10 @@ function ReportsContent() {
   useEffect(() => {
     loadReports();
   }, [loadReports]);
+
+  useEffect(() => {
+    loadExportLogs();
+  }, [loadExportLogs]);
 
   return (
     <div>
@@ -926,6 +984,42 @@ function ReportsContent() {
           ) : null}
         </div>
       )}
+
+      <section className="mt-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <ClipboardList aria-hidden="true" size={19} />
+            <div>
+              <h2 className="text-base font-semibold text-ink">Histórico de exportações</h2>
+              <p className="text-sm text-muted">Últimos 50 arquivos gerados pelo sistema.</p>
+            </div>
+          </div>
+          <StatusBadge tone="neutral">{exportLogs.length}</StatusBadge>
+        </div>
+
+        {exportLogs.length === 0 ? (
+          <p className="text-sm text-muted">Nenhuma exportação registrada.</p>
+        ) : (
+          <div className="space-y-3">
+            {exportLogs.map((log) => (
+              <div className="border-b border-line pb-3 last:border-0 last:pb-0" key={log.id}>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="font-medium text-ink">{log.file_name}</p>
+                    <p className="text-sm text-muted">
+                      {(log.user_id && exportUserNames[log.user_id]) || "Usuário removido"} • {log.user_role === "lideranca" ? "Liderança" : "Recepção"} • {log.record_count} registros
+                    </p>
+                    <p className="mt-1 text-xs text-muted">Finalidade: {log.purpose}</p>
+                  </div>
+                  <StatusBadge tone="neutral">
+                    {new Date(log.created_at).toLocaleString("pt-BR")}
+                  </StatusBadge>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

@@ -20,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 import { formatDateBR, todayInputValue } from "@/lib/date";
 import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
+import { authorizeDataExport } from "@/lib/exportAudit";
 import {
   prepareMemberImportRows,
   readMemberImportFile,
@@ -711,7 +712,18 @@ function UnifiedRegistryContent() {
   }
 
   async function handleDownloadExcel() {
-    await downloadExcelWorkbook(datedFileName("cadastros", "xlsx"), [
+    const fileName = datedFileName("cadastros", "xlsx");
+    const authorized = await authorizeDataExport({
+      userId: session?.user.id,
+      userRole: profile?.role,
+      exportType: "cadastros_reduzido",
+      fileName,
+      recordCount: filteredItems.length,
+      filters: { tipo: kindFilter, busca: search }
+    });
+    if (!authorized) return;
+
+    await downloadExcelWorkbook(fileName, [
       {
         name: "Cadastros",
         rows: filteredItems.map((item) => ({

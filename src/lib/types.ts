@@ -47,6 +47,18 @@ export type VisitorSensitiveData = {
   updated_at: string;
 };
 
+export type ExportAuditLog = {
+  id: string;
+  user_id: string | null;
+  user_role: UserRole;
+  export_type: string;
+  file_name: string;
+  purpose: string;
+  record_count: number;
+  filters: Record<string, string | number | boolean | null>;
+  created_at: string;
+};
+
 export type Pastor = {
   id: string;
   full_name: string;
@@ -180,6 +192,22 @@ export type Database = {
           updated_at?: string;
         };
         Update: Partial<Omit<VisitorSensitiveData, "visitor_id" | "created_at">>;
+        Relationships: [];
+      };
+      export_audit_logs: {
+        Row: ExportAuditLog;
+        Insert: {
+          id?: string;
+          user_id: string;
+          user_role: UserRole;
+          export_type: string;
+          file_name: string;
+          purpose: string;
+          record_count: number;
+          filters?: Record<string, string | number | boolean | null>;
+          created_at?: string;
+        };
+        Update: never;
         Relationships: [];
       };
       pastors: {

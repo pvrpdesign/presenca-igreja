@@ -125,6 +125,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/16_pastor_speaker_role.sql` para permitir escolher entre Pastor e Pregador
 - `supabase/17_member_qr_checkin.sql` para ativar o check-in de membros por QR Code
 - `supabase/19_visitor_sensitive_data.sql` para restringir pedidos de oração e observações pastorais à liderança
+- `supabase/20_export_audit_logs.sql` para registrar e controlar exportações de dados pessoais
 
 Eles criam:
 

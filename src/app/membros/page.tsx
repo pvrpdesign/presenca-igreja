@@ -23,6 +23,7 @@ import {
 } from "@/lib/memberImport";
 import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
+import { authorizeDataExport } from "@/lib/exportAudit";
 import { supabase } from "@/lib/supabase";
 import type { Member, MemberStatus } from "@/lib/types";
 
@@ -351,7 +352,18 @@ function MembersContent() {
   }
 
   async function handleDownloadMembersExcel() {
-    await downloadExcelWorkbook(datedFileName("membros", "xlsx"), [
+    const fileName = datedFileName("membros", "xlsx");
+    const authorized = await authorizeDataExport({
+      userId: session?.user.id,
+      userRole: profile?.role,
+      exportType: profile?.role === "lideranca" ? "membros_completo" : "membros_reduzido",
+      fileName,
+      recordCount: filteredMembers.length,
+      filters
+    });
+    if (!authorized) return;
+
+    await downloadExcelWorkbook(fileName, [
       {
         name: "Membros",
         rows: filteredMembers.map((member) => ({
@@ -360,7 +372,7 @@ function MembersContent() {
           Bairro: member.neighborhood ?? "",
           Ministério: member.ministry ?? "",
           Status: member.status,
-          Observações: member.notes ?? "",
+          ...(profile?.role === "lideranca" ? { Observações: member.notes ?? "" } : {}),
           "Criado em": new Date(member.created_at).toLocaleDateString("pt-BR")
         }))
       }
