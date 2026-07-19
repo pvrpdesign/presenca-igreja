@@ -47,6 +47,7 @@ function LoginForm() {
         email: email.trim(),
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/login`,
           data: {
             full_name: fullName.trim(),
             requested_role: requestedRole
