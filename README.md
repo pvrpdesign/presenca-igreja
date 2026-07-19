@@ -64,7 +64,7 @@ Cole cada arquivo inteiro no SQL Editor e execute. Não execute começando no me
 
 7. Execute `supabase/21_user_approval.sql` em projetos existentes. Depois disso, novos usuários solicitam acesso pela página de login e ficam bloqueados até a aprovação do administrador em `/usuarios`.
 
-O administrador inicial é associado ao usuário com e-mail `liderancaiasdcalcada@gmail.com`. Se o e-mail administrativo for outro, altere-o no final do SQL 21 antes de executar.
+O administrador inicial é associado ao usuário com e-mail `sistema@iasdcalcada.com.br`. Para transferir a administração de uma instalação existente para essa conta, execute `supabase/22_transfer_admin.sql` depois que o e-mail estiver cadastrado e confirmado.
 
 8. Rode o app:
 

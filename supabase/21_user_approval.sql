@@ -110,4 +110,4 @@ set is_admin = true,
     approved_at = coalesce(profile.approved_at, now())
 from auth.users as auth_user
 where profile.id = auth_user.id
-  and lower(auth_user.email) = 'liderancaiasdcalcada@gmail.com';
+  and lower(auth_user.email) = 'sistema@iasdcalcada.com.br';
