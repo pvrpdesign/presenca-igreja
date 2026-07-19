@@ -41,7 +41,7 @@ type QuickVisitorForm = {
   full_name: string;
   phone: string;
   location: string;
-  denomination_choice: "adventista" | "outra";
+  denomination_choice: "nao_informado" | "adventista" | "outra";
   denomination_other: string;
   how_heard: string;
   prayer_request: string;
@@ -76,7 +76,7 @@ const emptyQuickVisitor: QuickVisitorForm = {
   full_name: "",
   phone: "",
   location: "",
-  denomination_choice: "adventista",
+  denomination_choice: "nao_informado",
   denomination_other: "",
   how_heard: "",
   prayer_request: "",
@@ -811,9 +811,11 @@ function AttendanceContent() {
       phone: normalizeBrazilPhone(quickVisitor.phone) || null,
       location: quickVisitor.location.trim() || null,
       denomination:
-        quickVisitor.denomination_choice === "adventista"
-          ? "Adventista"
-          : quickVisitor.denomination_other.trim(),
+        quickVisitor.denomination_choice === "nao_informado"
+          ? null
+          : quickVisitor.denomination_choice === "adventista"
+            ? "Adventista"
+            : quickVisitor.denomination_other.trim() || null,
       how_heard: quickVisitor.how_heard.trim() || null,
       prayer_request: quickVisitor.prayer_request.trim() || null,
       notes: quickVisitor.notes.trim() || null
@@ -1171,13 +1173,17 @@ function AttendanceContent() {
                     onChange={(event) =>
                       setQuickVisitor({
                         ...quickVisitor,
-                        denomination_choice: event.target.value as "adventista" | "outra",
+                        denomination_choice: event.target.value as
+                          | "nao_informado"
+                          | "adventista"
+                          | "outra",
                         denomination_other:
                           event.target.value === "outra" ? quickVisitor.denomination_other : ""
                       })
                     }
                     value={quickVisitor.denomination_choice}
                   >
+                    <option value="nao_informado">Não informado</option>
                     <option value="adventista">Adventista</option>
                     <option value="outra">Outra</option>
                   </select>

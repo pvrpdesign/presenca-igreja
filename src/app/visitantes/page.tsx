@@ -15,7 +15,7 @@ const initialForm = {
   full_name: "",
   phone: "",
   location: "",
-  denomination_choice: "adventista" as "adventista" | "outra",
+  denomination_choice: "nao_informado" as "nao_informado" | "adventista" | "outra",
   denomination_other: "",
   how_heard: "",
   prayer_request: "",
@@ -103,9 +103,11 @@ function VisitorsContent() {
       phone: visitor.phone ?? "",
       location: visitor.location ?? "",
       denomination_choice:
-        !visitor.denomination || normalizeFilter(visitor.denomination) === "adventista"
-          ? "adventista"
-          : "outra",
+        !visitor.denomination
+          ? "nao_informado"
+          : normalizeFilter(visitor.denomination) === "adventista"
+            ? "adventista"
+            : "outra",
       denomination_other:
         visitor.denomination && normalizeFilter(visitor.denomination) !== "adventista"
           ? visitor.denomination
@@ -128,9 +130,11 @@ function VisitorsContent() {
       phone: normalizeBrazilPhone(form.phone) || null,
       location: form.location.trim() || null,
       denomination:
-        form.denomination_choice === "adventista"
-          ? "Adventista"
-          : form.denomination_other.trim(),
+        form.denomination_choice === "nao_informado"
+          ? null
+          : form.denomination_choice === "adventista"
+            ? "Adventista"
+            : form.denomination_other.trim() || null,
       how_heard: form.how_heard.trim() || null,
       prayer_request: form.prayer_request.trim() || null,
       notes: form.notes.trim() || null
@@ -313,13 +317,17 @@ function VisitorsContent() {
                 onChange={(event) =>
                   setForm({
                     ...form,
-                    denomination_choice: event.target.value as "adventista" | "outra",
+                    denomination_choice: event.target.value as
+                      | "nao_informado"
+                      | "adventista"
+                      | "outra",
                     denomination_other:
                       event.target.value === "outra" ? form.denomination_other : ""
                   })
                 }
                 value={form.denomination_choice}
               >
+                <option value="nao_informado">Não informado</option>
                 <option value="adventista">Adventista</option>
                 <option value="outra">Outra</option>
               </select>
