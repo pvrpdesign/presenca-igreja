@@ -324,6 +324,10 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      get_followup_actor_names: {
+        Args: { p_user_ids: string[] };
+        Returns: { display_name: string; user_id: string }[];
+      };
       get_member_checkin_service: {
         Args: { p_token: string };
         Returns: Record<string, string | boolean | null>;

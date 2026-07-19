@@ -43,6 +43,7 @@ type ReceptionGuest = {
   contact: string | null;
   detail: string | null;
   kindLabel: string;
+  followedUpBy: string | null;
   followedUpAt: string | null;
 };
 type ServiceSummary = Pick<Service, "id" | "service_date" | "service_type" | "title">;
@@ -153,6 +154,15 @@ function lastAttendanceText(attendance: FollowUpItem["lastAttendance"]) {
   return `${SERVICE_LABELS[attendance.service_type]} em ${formatDateBR(attendance.service_date)}`;
 }
 
+function formatActionDate(value: string | null) {
+  if (!value) return "data não informada";
+  return new Date(value).toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Bahia"
+  });
+}
+
 function itemKey(item: Pick<FollowUpItem, "id" | "kind">) {
   return `${item.kind}:${item.id}`;
 }
@@ -192,6 +202,28 @@ function FollowUpContent() {
   const [guestSearch, setGuestSearch] = useState("");
   const [isVisitorHistoryLoading, setIsVisitorHistoryLoading] = useState(true);
   const [visitorHistoryMessage, setVisitorHistoryMessage] = useState("");
+  const [actorNames, setActorNames] = useState<Record<string, string>>({});
+
+  const loadActorNames = useCallback(async (userIds: (string | null)[]) => {
+    const uniqueUserIds = [...new Set(userIds.filter((userId): userId is string => Boolean(userId)))];
+    if (uniqueUserIds.length === 0) return;
+
+    const { data, error } = await supabase.rpc("get_followup_actor_names", {
+      p_user_ids: uniqueUserIds
+    });
+
+    if (error) {
+      setNeedsSqlSetup(true);
+      return;
+    }
+
+    setActorNames((current) => ({
+      ...current,
+      ...Object.fromEntries(
+        (data ?? []).map((actor) => [actor.user_id, actor.display_name])
+      )
+    }));
+  }, []);
 
   const loadVisitorsByService = useCallback(async () => {
     setIsVisitorHistoryLoading(true);
@@ -228,7 +260,7 @@ function FollowUpContent() {
     const serviceIds = services.map((service) => service.id);
     const { data: attendanceData, error: attendanceError } = await supabase
       .from("attendances")
-      .select("id, person_id, person_type, service_id, followed_up_at")
+      .select("id, person_id, person_type, service_id, followed_up_by, followed_up_at")
       .in("person_type", ["visitante", "pastor", "musica"])
       .in("service_id", serviceIds);
 
@@ -242,8 +274,9 @@ function FollowUpContent() {
 
     const attendances = (attendanceData ?? []) as Pick<
       Attendance,
-      "id" | "person_id" | "person_type" | "service_id" | "followed_up_at"
+      "id" | "person_id" | "person_type" | "service_id" | "followed_up_by" | "followed_up_at"
     >[];
+    await loadActorNames(attendances.map((attendance) => attendance.followed_up_by));
     const visitorIds = [
       ...new Set(
         attendances
@@ -294,20 +327,20 @@ function FollowUpContent() {
           attendances.filter((row) => row.service_id === service.id).map((row): ReceptionGuest | null => {
             if (row.person_type === "visitante") {
               const person = visitorById.get(row.person_id);
-              return person ? { attendanceId: row.id, personId: row.person_id, kind: "visitante", kindLabel: "Visitante", fullName: person.full_name, contact: person.phone, detail: person.location, followedUpAt: row.followed_up_at } : null;
+              return person ? { attendanceId: row.id, personId: row.person_id, kind: "visitante", kindLabel: "Visitante", fullName: person.full_name, contact: person.phone, detail: person.location, followedUpBy: row.followed_up_by, followedUpAt: row.followed_up_at } : null;
             }
             if (row.person_type === "pastor") {
               const person = pastorById.get(row.person_id);
-              return person ? { attendanceId: row.id, personId: row.person_id, kind: "pastor", kindLabel: person.speaker_role === "pregador" ? "Pregador" : "Pastor", fullName: person.full_name, contact: person.phone, detail: person.district, followedUpAt: row.followed_up_at } : null;
+              return person ? { attendanceId: row.id, personId: row.person_id, kind: "pastor", kindLabel: person.speaker_role === "pregador" ? "Pregador" : "Pastor", fullName: person.full_name, contact: person.phone, detail: person.district, followedUpBy: row.followed_up_by, followedUpAt: row.followed_up_at } : null;
             }
             const person = musicById.get(row.person_id);
-            return person ? { attendanceId: row.id, personId: row.person_id, kind: "musica", kindLabel: "Música Especial", fullName: person.performer_name, contact: person.contact, detail: person.church, followedUpAt: row.followed_up_at } : null;
+            return person ? { attendanceId: row.id, personId: row.person_id, kind: "musica", kindLabel: "Música Especial", fullName: person.performer_name, contact: person.contact, detail: person.church, followedUpBy: row.followed_up_by, followedUpAt: row.followed_up_at } : null;
           }).filter((guest): guest is ReceptionGuest => Boolean(guest)).sort((a, b) => a.fullName.localeCompare(b.fullName, "pt-BR"))
         ])
       )
     );
     setIsVisitorHistoryLoading(false);
-  }, []);
+  }, [loadActorNames]);
 
   const loadFollowUps = useCallback(async () => {
     setIsLoading(true);
@@ -501,6 +534,10 @@ function FollowUpContent() {
       }
     }
 
+    await loadActorNames(
+      [...memberFollowUps, ...visitorFollowUps].map((followUp) => followUp.contacted_by)
+    );
+
     const followUpByMember = new Map(memberFollowUps.map((followUp) => [followUp.person_id, followUp]));
     const followUpByVisitor = new Map(visitorFollowUps.map((followUp) => [followUp.person_id, followUp]));
     const memberItems: FollowUpItem[] = membersWithStreak
@@ -536,7 +573,7 @@ function FollowUpContent() {
       )
     );
     setIsLoading(false);
-  }, []);
+  }, [loadActorNames]);
 
   useEffect(() => {
     loadFollowUps();
@@ -896,6 +933,13 @@ function FollowUpContent() {
                       <p className="mt-1 text-sm text-muted">
                         {guest.kindLabel} • {guest.contact || "Sem contato"} • {guest.detail || "Sem local informado"}
                       </p>
+                      {isAccompanied ? (
+                        <p className="mt-2 text-xs font-medium text-forest">
+                          Realizado por {guest.followedUpBy
+                            ? actorNames[guest.followedUpBy] ?? "Usuário não disponível"
+                            : "Usuário não identificado"} em {formatActionDate(guest.followedUpAt)}
+                        </p>
+                      ) : null}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {whatsappUrl ? <a className="secondary-button shrink-0" href={whatsappUrl} rel="noreferrer" target="_blank"><MessageCircle aria-hidden="true" size={17} />{isThankYou ? "Agradecer" : "Mensagem"}</a> : null}
@@ -917,7 +961,7 @@ function FollowUpContent() {
           <Notice
             tone="warning"
             title="Atualização do Supabase pendente"
-            text="Rode os arquivos SQL indicados na mensagem (incluindo supabase/18_attendance_followups.sql) no SQL Editor."
+            text="Rode o SQL indicado pela mensagem. Para exibir o responsável, execute também supabase/24_followup_actor_names.sql."
           />
         </div>
       ) : null}
@@ -1020,6 +1064,16 @@ function FollowUpContent() {
                     <dt className="font-semibold text-ink">Última presença</dt>
                     <dd className="mt-1 text-muted">{lastAttendanceText(item.lastAttendance)}</dd>
                   </div>
+                  {isAccompanied ? (
+                    <div className="sm:col-span-2">
+                      <dt className="font-semibold text-ink">Acompanhamento realizado por</dt>
+                      <dd className="mt-1 text-forest">
+                        {item.followUp?.contacted_by
+                          ? actorNames[item.followUp.contacted_by] ?? "Usuário não disponível"
+                          : "Usuário não identificado"} em {formatActionDate(item.followUp?.contacted_at ?? null)}
+                      </dd>
+                    </div>
+                  ) : null}
                 </dl>
 
                 <label className="block">

@@ -68,13 +68,15 @@ O administrador inicial é associado ao usuário com e-mail `sistema@iasdcalcada
 
 8. Execute `supabase/23_access_levels.sql` para aplicar a separação de permissões entre Administrador, Liderança e Recepção.
 
-9. Rode o app:
+9. Execute `supabase/24_followup_actor_names.sql` para permitir que a liderança veja o nome e o sobrenome de quem realizou cada acompanhamento ou agradecimento.
+
+10. Rode o app:
 
 ```bash
 npm run dev
 ```
 
-10. Abra `http://localhost:3000`.
+11. Abra `http://localhost:3000`.
 
 ## Publicar na Vercel
 
@@ -115,6 +117,9 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/19_visitor_sensitive_data.sql` para restringir pedidos de oração e observações pastorais à liderança
 - `supabase/20_export_audit_logs.sql` para registrar e controlar exportações de dados pessoais
 - `supabase/21_user_approval.sql` para ativar cadastro público, aprovação e administrador inicial
+- `supabase/22_transfer_admin.sql` para transferir a administração para o e-mail do sistema
+- `supabase/23_access_levels.sql` para separar os acessos de Administrador, Liderança e Recepção
+- `supabase/24_followup_actor_names.sql` para exibir o responsável por acompanhamentos e agradecimentos
 
 Eles criam:
 
