@@ -48,7 +48,7 @@ cp .env.example .env.local
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-publica
-NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL=liderancaiasdcalcada@gmail.com
+NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL=lideranca@iasdcalcada.com.br
 ```
 
 6. No Supabase, abra SQL Editor e execute os arquivos SQL nesta ordem:
