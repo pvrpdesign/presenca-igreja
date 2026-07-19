@@ -46,6 +46,8 @@ export default function VisitorsPage() {
 
 function VisitorsContent() {
   const { profile, session } = useAuth();
+  const canDeleteVisitors = profile?.is_admin === true;
+  const canExportVisitors = profile?.role === "lideranca";
   const [form, setForm] = useState(initialForm);
   const [editingVisitorId, setEditingVisitorId] = useState<string | null>(null);
   const [visitors, setVisitors] = useState<Visitor[]>([]);
@@ -231,6 +233,8 @@ function VisitorsContent() {
   }
 
   async function handleDelete(visitor: Visitor) {
+    if (!canDeleteVisitors) return;
+
     const confirmed = window.confirm(
       `Excluir o cadastro de ${visitor.full_name}? As presenças deste visitante também serão removidas.`
     );
@@ -270,6 +274,8 @@ function VisitorsContent() {
   }
 
   async function handleDownloadVisitorsExcel() {
+    if (!canExportVisitors) return;
+
     const fileName = datedFileName("visitantes", "xlsx");
     const authorized = await authorizeDataExport({
       userId: session?.user.id,
@@ -306,15 +312,17 @@ function VisitorsContent() {
     <div>
       <PageHeader
         action={
-          <button
-            className="secondary-button"
-            disabled={filteredVisitors.length === 0}
-            onClick={handleDownloadVisitorsExcel}
-            type="button"
-          >
-            <FileDown aria-hidden="true" size={17} />
-            Baixar Excel
-          </button>
+          canExportVisitors ? (
+            <button
+              className="secondary-button"
+              disabled={filteredVisitors.length === 0}
+              onClick={handleDownloadVisitorsExcel}
+              type="button"
+            >
+              <FileDown aria-hidden="true" size={17} />
+              Baixar Excel
+            </button>
+          ) : undefined
         }
         eyebrow="Cadastro"
         title="Visitantes"
@@ -551,15 +559,17 @@ function VisitorsContent() {
                         <Edit3 aria-hidden="true" size={15} />
                         Editar
                       </button>
-                      <button
-                        className="danger-button min-h-9 px-3 py-2"
-                        disabled={deletingVisitorId === visitor.id}
-                        onClick={() => handleDelete(visitor)}
-                        type="button"
-                      >
-                        <Trash2 aria-hidden="true" size={15} />
-                        {deletingVisitorId === visitor.id ? "Excluindo..." : "Excluir"}
-                      </button>
+                      {canDeleteVisitors ? (
+                        <button
+                          className="danger-button min-h-9 px-3 py-2"
+                          disabled={deletingVisitorId === visitor.id}
+                          onClick={() => handleDelete(visitor)}
+                          type="button"
+                        >
+                          <Trash2 aria-hidden="true" size={15} />
+                          {deletingVisitorId === visitor.id ? "Excluindo..." : "Excluir"}
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </div>

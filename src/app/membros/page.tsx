@@ -102,7 +102,7 @@ function MembersContent() {
           member.phone,
           member.neighborhood,
           member.ministry,
-          member.notes
+          ...(profile?.role === "lideranca" ? [member.notes] : [])
         ].some((value) => normalizeFilter(value).includes(search));
       const matchesStatus = filters.status === "todos" || member.status === filters.status;
       const matchesNeighborhood =
@@ -111,7 +111,7 @@ function MembersContent() {
 
       return matchesSearch && matchesStatus && matchesNeighborhood && matchesMinistry;
     });
-  }, [filters, members]);
+  }, [filters, members, profile?.role]);
 
   const validImportRows = useMemo(
     () => importRows.filter((row) => row.errors.length === 0 && !row.isDuplicate),
@@ -119,7 +119,8 @@ function MembersContent() {
   );
 
   const importProblemCount = importRows.length - validImportRows.length;
-  const canDeleteMembers = profile?.role === "lideranca";
+  const canDeleteMembers = profile?.is_admin === true;
+  const canExportMembers = profile?.role === "lideranca";
   const selectedMembers = useMemo(
     () => members.filter((member) => selectedMemberIds.has(member.id)),
     [members, selectedMemberIds]
@@ -226,6 +227,8 @@ function MembersContent() {
   }
 
   async function handleDelete(member: Member) {
+    if (!canDeleteMembers) return;
+
     const confirmed = window.confirm(
       `Excluir o cadastro de ${member.full_name}? As presenças antigas continuarão no histórico como membro removido.`
     );
@@ -253,7 +256,7 @@ function MembersContent() {
   }
 
   async function handleBulkDelete() {
-    if (selectedMembers.length === 0 || isBulkDeleting) return;
+    if (!canDeleteMembers || selectedMembers.length === 0 || isBulkDeleting) return;
 
     const confirmed = window.confirm(
       `Excluir ${selectedMembers.length} membros selecionados? As presenças antigas continuarão no histórico como membros removidos.`
@@ -316,6 +319,8 @@ function MembersContent() {
   }
 
   async function handleBulkImport() {
+    if (profile?.role !== "lideranca") return;
+
     if (validImportRows.length === 0 || isImporting) return;
 
     setIsImporting(true);
@@ -352,6 +357,8 @@ function MembersContent() {
   }
 
   async function handleDownloadMembersExcel() {
+    if (!canExportMembers) return;
+
     const fileName = datedFileName("membros", "xlsx");
     const authorized = await authorizeDataExport({
       userId: session?.user.id,
@@ -383,15 +390,17 @@ function MembersContent() {
     <div>
       <PageHeader
         action={
-          <button
-            className="secondary-button"
-            disabled={filteredMembers.length === 0}
-            onClick={handleDownloadMembersExcel}
-            type="button"
-          >
-            <FileDown aria-hidden="true" size={17} />
-            Baixar Excel
-          </button>
+          canExportMembers ? (
+            <button
+              className="secondary-button"
+              disabled={filteredMembers.length === 0}
+              onClick={handleDownloadMembersExcel}
+              type="button"
+            >
+              <FileDown aria-hidden="true" size={17} />
+              Baixar Excel
+            </button>
+          ) : undefined
         }
         eyebrow="Cadastro"
         title="Membros"
@@ -474,13 +483,15 @@ function MembersContent() {
               </Field>
             </div>
 
-            <Field label="Observações">
-              <textarea
-                className="field-input min-h-28 resize-y"
-                onChange={(event) => setForm({ ...form, notes: event.target.value })}
-                value={form.notes}
-              />
-            </Field>
+            {profile?.role === "lideranca" ? (
+              <Field label="Observações">
+                <textarea
+                  className="field-input min-h-28 resize-y"
+                  onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                  value={form.notes}
+                />
+              </Field>
+            ) : null}
 
             {message ? (
               <Notice
@@ -500,6 +511,7 @@ function MembersContent() {
           </form>
           </section>
 
+          {profile?.role === "lideranca" ? (
           <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -617,6 +629,7 @@ function MembersContent() {
               </div>
             ) : null}
           </section>
+          ) : null}
         </div>
 
         <aside className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">

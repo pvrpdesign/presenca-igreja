@@ -67,11 +67,12 @@ using (public.current_user_role() in ('recepcao', 'lideranca'))
 with check (public.current_user_role() in ('recepcao', 'lideranca'));
 
 drop policy if exists "Leadership can delete pastors" on public.pastors;
-create policy "Leadership can delete pastors"
+drop policy if exists "Administrators can delete pastors" on public.pastors;
+create policy "Administrators can delete pastors"
 on public.pastors
 for delete
 to authenticated
-using (public.current_user_role() = 'lideranca');
+using (public.current_user_is_admin());
 
 drop policy if exists "Reception and leadership can read special music" on public.special_music;
 create policy "Reception and leadership can read special music"
@@ -96,11 +97,12 @@ using (public.current_user_role() in ('recepcao', 'lideranca'))
 with check (public.current_user_role() in ('recepcao', 'lideranca'));
 
 drop policy if exists "Leadership can delete special music" on public.special_music;
-create policy "Leadership can delete special music"
+drop policy if exists "Administrators can delete special music" on public.special_music;
+create policy "Administrators can delete special music"
 on public.special_music
 for delete
 to authenticated
-using (public.current_user_role() = 'lideranca');
+using (public.current_user_is_admin());
 
 grant select, insert, update, delete on public.pastors to authenticated;
 grant select, insert, update, delete on public.special_music to authenticated;

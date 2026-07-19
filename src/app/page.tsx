@@ -287,6 +287,11 @@ function DashboardContent() {
       return;
     }
 
+    if (profile?.role === "recepcao" && serviceDate !== todayInputValue()) {
+      setCheckInMessage("A Recepção pode iniciar somente o culto de hoje.");
+      return;
+    }
+
     setIsStartingCheckIn(true);
 
     const { data: existingService, error: existingServiceError } = await supabase
@@ -320,8 +325,8 @@ function DashboardContent() {
     router.push(`/presenca?data=${serviceDate}&tipo=${serviceType}`);
   }
 
-  const actions = useMemo(
-    () => [
+  const actions = useMemo(() => {
+    const receptionActions = [
       {
         href: "#culto-atual",
         label: "Iniciar culto",
@@ -339,22 +344,27 @@ function DashboardContent() {
         label: "Cadastros",
         icon: UserPlus,
         tone: "bg-white text-ink hover:border-forest hover:text-forest"
-      },
-      {
-        href: "/acompanhamento",
-        label: "Acompanhamento",
-        icon: HeartHandshake,
-        tone: "bg-white text-ink hover:border-wine hover:text-wine"
-      },
-      {
-        href: "/relatorios",
-        label: "Relatórios",
-        icon: BarChart3,
-        tone: "bg-white text-ink hover:border-wine hover:text-wine"
       }
-    ],
-    []
-  );
+    ];
+
+    return profile?.role === "lideranca"
+      ? [
+          ...receptionActions,
+          {
+            href: "/acompanhamento",
+            label: "Acompanhamento",
+            icon: HeartHandshake,
+            tone: "bg-white text-ink hover:border-wine hover:text-wine"
+          },
+          {
+            href: "/relatorios",
+            label: "Relatórios",
+            icon: BarChart3,
+            tone: "bg-white text-ink hover:border-wine hover:text-wine"
+          }
+        ]
+      : receptionActions;
+  }, [profile?.role]);
 
   return (
     <div>
@@ -389,6 +399,7 @@ function DashboardContent() {
             <span className="field-label">Data</span>
             <input
               className="field-input"
+              disabled={profile?.role === "recepcao"}
               onChange={(event) => {
                 setServiceDate(event.target.value);
                 setServiceType(inferServiceType(event.target.value));

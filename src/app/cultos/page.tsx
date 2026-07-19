@@ -145,7 +145,7 @@ function ServicesContent() {
     [statsByService]
   );
 
-  const canDeleteServices = profile?.role === "lideranca";
+  const canDeleteServices = profile?.is_admin === true;
 
   const loadServices = useCallback(async () => {
     setIsLoading(true);
@@ -259,6 +259,12 @@ function ServicesContent() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+
+    if (profile?.role === "recepcao" && form.service_date !== todayInputValue()) {
+      setMessage("A Recepção pode criar ou editar somente o culto de hoje.");
+      return;
+    }
+
     setIsSaving(true);
 
     const payload = {
@@ -291,6 +297,8 @@ function ServicesContent() {
   }
 
   async function handleDelete(service: ServiceRow) {
+    if (!canDeleteServices) return;
+
     const stats = statsByService[service.id] ?? emptyStats;
     const confirmed = window.confirm(
       `Excluir ${serviceDisplayTitle(service)}? As ${stats.total} presenças vinculadas também serão removidas.`
@@ -393,6 +401,7 @@ function ServicesContent() {
               <Field label="Data do culto">
                 <input
                   className="field-input"
+                  disabled={profile?.role === "recepcao"}
                   onChange={(event) => {
                     const serviceDate = event.target.value;
                     setForm({
@@ -533,6 +542,8 @@ function ServicesContent() {
               {services.map((service) => {
                 const stats = statsByService[service.id] ?? emptyStats;
                 const presenceHref = `/presenca?data=${service.service_date}&tipo=${service.service_type}`;
+                const canEditService =
+                  profile?.role === "lideranca" || service.service_date === todayInputValue();
 
                 return (
                   <article
@@ -571,14 +582,16 @@ function ServicesContent() {
                           <QrCode aria-hidden="true" size={16} />
                           QR Code
                         </button>
-                        <button
-                          className="secondary-button min-h-10 px-3 py-2"
-                          onClick={() => startEdit(service)}
-                          type="button"
-                        >
-                          <Edit3 aria-hidden="true" size={16} />
-                          Editar
-                        </button>
+                        {canEditService ? (
+                          <button
+                            className="secondary-button min-h-10 px-3 py-2"
+                            onClick={() => startEdit(service)}
+                            type="button"
+                          >
+                            <Edit3 aria-hidden="true" size={16} />
+                            Editar
+                          </button>
+                        ) : null}
                         {canDeleteServices ? (
                           <button
                             className="danger-button min-h-10 px-3 py-2"
@@ -589,11 +602,7 @@ function ServicesContent() {
                             <Trash2 aria-hidden="true" size={16} />
                             {deletingServiceId === service.id ? "Excluindo..." : "Excluir"}
                           </button>
-                        ) : (
-                          <button className="secondary-button min-h-10 px-3 py-2" disabled type="button">
-                            Só liderança
-                          </button>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   </article>

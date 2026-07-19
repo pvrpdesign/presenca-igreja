@@ -25,13 +25,19 @@ const navigation = [
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 }
 ];
 
+const receptionNavigation = navigation.filter((item) =>
+  ["/", "/presenca", "/cultos", "/cadastros"].includes(item.href)
+);
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, signOut } = useAuth();
   const visibleNavigation = profile?.is_admin
     ? [...navigation, { href: "/usuarios", label: "Usuários", icon: ShieldCheck }]
-    : navigation;
+    : profile?.role === "lideranca"
+      ? navigation
+      : receptionNavigation;
 
   async function handleSignOut() {
     await signOut();

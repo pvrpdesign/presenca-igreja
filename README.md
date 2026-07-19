@@ -66,13 +66,15 @@ Cole cada arquivo inteiro no SQL Editor e execute. Não execute começando no me
 
 O administrador inicial é associado ao usuário com e-mail `sistema@iasdcalcada.com.br`. Para transferir a administração de uma instalação existente para essa conta, execute `supabase/22_transfer_admin.sql` depois que o e-mail estiver cadastrado e confirmado.
 
-8. Rode o app:
+8. Execute `supabase/23_access_levels.sql` para aplicar a separação de permissões entre Administrador, Liderança e Recepção.
+
+9. Rode o app:
 
 ```bash
 npm run dev
 ```
 
-9. Abra `http://localhost:3000`.
+10. Abra `http://localhost:3000`.
 
 ## Publicar na Vercel
 

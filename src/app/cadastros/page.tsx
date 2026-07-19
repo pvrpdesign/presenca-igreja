@@ -132,7 +132,8 @@ function UnifiedRegistryContent() {
   const [isReadingImport, setIsReadingImport] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  const canDelete = profile?.role === "lideranca";
+  const canDelete = profile?.is_admin === true;
+  const canExport = profile?.role === "lideranca";
 
   const loadRegistries = useCallback(async () => {
     const [membersResponse, visitorsResponse, pastorsResponse, specialMusicResponse] =
@@ -675,6 +676,8 @@ function UnifiedRegistryContent() {
   }
 
   async function handleBulkImport() {
+    if (profile?.role !== "lideranca") return;
+
     if (validImportRows.length === 0 || isImporting) return;
 
     setIsImporting(true);
@@ -712,6 +715,8 @@ function UnifiedRegistryContent() {
   }
 
   async function handleDownloadExcel() {
+    if (!canExport) return;
+
     const fileName = datedFileName("cadastros", "xlsx");
     const authorized = await authorizeDataExport({
       userId: session?.user.id,
@@ -741,15 +746,17 @@ function UnifiedRegistryContent() {
     <div>
       <PageHeader
         action={
-          <button
-            className="secondary-button"
-            disabled={filteredItems.length === 0}
-            onClick={handleDownloadExcel}
-            type="button"
-          >
-            <FileDown aria-hidden="true" size={17} />
-            Baixar Excel
-          </button>
+          canExport ? (
+            <button
+              className="secondary-button"
+              disabled={filteredItems.length === 0}
+              onClick={handleDownloadExcel}
+              type="button"
+            >
+              <FileDown aria-hidden="true" size={17} />
+              Baixar Excel
+            </button>
+          ) : undefined
         }
         eyebrow="Cadastro"
         title="Cadastros"
@@ -869,13 +876,15 @@ function UnifiedRegistryContent() {
                     <option value="transferido">Transferido</option>
                   </select>
                 </Field>
-                <Field label="Observações">
-                  <textarea
-                    className="field-input min-h-24 resize-y"
-                    onChange={(event) => setForm({ ...form, notes: event.target.value })}
-                    value={form.notes}
-                  />
-                </Field>
+                {profile?.role === "lideranca" ? (
+                  <Field label="Observações">
+                    <textarea
+                      className="field-input min-h-24 resize-y"
+                      onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                      value={form.notes}
+                    />
+                  </Field>
+                ) : null}
               </>
             ) : null}
 
@@ -999,7 +1008,7 @@ function UnifiedRegistryContent() {
             </button>
           </form>
 
-          {form.kind === "membro" ? (
+          {form.kind === "membro" && profile?.role === "lideranca" ? (
             <div className="mt-5 border-t border-line pt-5">
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
