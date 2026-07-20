@@ -41,7 +41,10 @@ type VisitorFrequency = Pick<Visitor, "id" | "full_name" | "phone" | "location">
   total: number;
 };
 
-type PastorFrequency = Pick<Pastor, "id" | "full_name" | "phone" | "district"> & {
+type PastorFrequency = Pick<
+  Pastor,
+  "id" | "full_name" | "phone" | "district" | "speaker_role"
+> & {
   total: number;
   visits: Pick<Attendance, "service_date" | "service_type">[];
 };
@@ -113,7 +116,7 @@ const audienceFilterOptions: { value: AudienceFilter; label: string }[] = [
   { value: "todos", label: "Todos" },
   { value: "membros", label: "Só membros" },
   { value: "visitantes", label: "Só visitantes" },
-  { value: "pastores", label: "Só pastores" },
+  { value: "pastores", label: "Só pastores/pregadores" },
   { value: "musica", label: "Música Especial" }
 ];
 
@@ -169,7 +172,14 @@ function matchesPastorFilters(pastor: PastorFrequency, filters: ReportFilters) {
   const pastorSearch = normalizeFilterValue(filters.pastorSearch.trim());
   const pastorDistrict = normalizeFilterValue(filters.pastorDistrict.trim());
   const pastorText = normalizeFilterValue(
-    [pastor.full_name, pastor.phone, pastor.district].filter(Boolean).join(" ")
+    [
+      pastor.full_name,
+      pastor.phone,
+      pastor.district,
+      pastor.speaker_role === "pregador" ? "Pregador" : "Pastor"
+    ]
+      .filter(Boolean)
+      .join(" ")
   );
 
   return (
@@ -287,7 +297,7 @@ function ReportsContent() {
       : audienceFilter === "visitantes"
         ? "Visitantes"
         : audienceFilter === "pastores"
-          ? "Pastores"
+          ? "Pastores/pregadores"
           : audienceFilter === "musica"
             ? "Música Especial"
             : "Todos";
@@ -357,10 +367,10 @@ function ReportsContent() {
       : audienceFilter === "visitantes"
         ? "O tipo de culto filtra a recorrência de visitantes no período."
         : audienceFilter === "pastores"
-          ? "Pastores usam as presenças marcadas no período."
+          ? "Pastores e pregadores usam as presenças marcadas no período."
           : audienceFilter === "musica"
             ? "Música Especial usa a data em que o cantor, cantora ou grupo esteve na igreja."
-            : "Faltas de membros consideram apenas sábados. Visitantes e pastores usam as presenças. Música Especial usa a data da participação.";
+            : "Faltas de membros consideram apenas sábados. Visitantes, pastores e pregadores usam as presenças. Música Especial usa a data da participação.";
 
   async function handleDownloadPdf() {
     const memberLine = (member: ReportMember) =>
@@ -373,7 +383,7 @@ function ReportsContent() {
         visitor.location || "Sem cidade/bairro"
       } | ${visitor.total} presenças`;
     const pastorLine = (pastor: PastorFrequency) =>
-      `${pastor.full_name} | ${pastor.phone || "Sem telefone"} | ${
+      `${pastor.full_name} | ${pastor.speaker_role === "pregador" ? "Pregador" : "Pastor"} | ${pastor.phone || "Sem telefone"} | ${
         pastor.district || "Sem distrito"
       } | ${pastor.total} presenças | ${pastor.visits
         .map((visit) => `${SERVICE_LABELS[visit.service_type]} ${formatDateBR(visit.service_date)}`)
@@ -415,7 +425,7 @@ function ReportsContent() {
       ...(showPastorReports
         ? [
             {
-              title: `Pastores no período (${filteredReports.pastorsInPeriod.length})`,
+              title: `Pastores e pregadores no período (${filteredReports.pastorsInPeriod.length})`,
               lines: filteredReports.pastorsInPeriod.map(pastorLine)
             }
           ]
@@ -629,15 +639,21 @@ function ReportsContent() {
     });
 
     const pastorIds = [...pastorVisits.keys()];
-    let pastorRows: Pick<Pastor, "id" | "full_name" | "phone" | "district">[] = [];
+    let pastorRows: Pick<
+      Pastor,
+      "id" | "full_name" | "phone" | "district" | "speaker_role"
+    >[] = [];
 
     if (pastorIds.length > 0) {
       const { data } = await supabase
         .from("pastors")
-        .select("id, full_name, phone, district")
+        .select("id, full_name, phone, district, speaker_role")
         .in("id", pastorIds);
 
-      pastorRows = (data ?? []) as Pick<Pastor, "id" | "full_name" | "phone" | "district">[];
+      pastorRows = (data ?? []) as Pick<
+        Pastor,
+        "id" | "full_name" | "phone" | "district" | "speaker_role"
+      >[];
     }
 
     const pastorsInPeriod = pastorRows
@@ -866,15 +882,15 @@ function ReportsContent() {
           ) : null}
           {showPastorReports ? (
             <>
-              <Field label="Buscar pastor">
+              <Field label="Buscar pastor/pregador">
                 <input
                   className="field-input"
                   onChange={(event) => updateFilter("pastorSearch", event.target.value)}
-                  placeholder="Nome ou telefone"
+                  placeholder="Nome, telefone ou função"
                   value={filters.pastorSearch}
                 />
               </Field>
-              <Field label="Distrito do pastor">
+              <Field label="Distrito do pastor/pregador">
                 <input
                   className="field-input"
                   onChange={(event) => updateFilter("pastorDistrict", event.target.value)}
@@ -967,11 +983,11 @@ function ReportsContent() {
           ) : null}
           {showPastorReports ? (
             <PastorSection
-              emptyText="Nenhum pastor encontrado no período."
+              emptyText="Nenhum pastor ou pregador encontrado no período."
               hasActiveFilters={hasActivePastorFilters}
               icon={UserCheck}
               items={filteredReports.pastorsInPeriod}
-              title="Pastores no período"
+              title="Pastores e pregadores no período"
             />
           ) : null}
           {showSpecialMusicReports ? (
@@ -1136,7 +1152,7 @@ function PastorSection({
   title: string;
 }) {
   const emptyMessage = hasActiveFilters
-    ? "Nenhum pastor encontrado com os filtros atuais."
+    ? "Nenhum pastor ou pregador encontrado com os filtros atuais."
     : emptyText;
 
   return (
@@ -1157,7 +1173,12 @@ function PastorSection({
             <div className="border-b border-line pb-3 last:border-0 last:pb-0" key={pastor.id}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-medium text-ink">{pastor.full_name}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium text-ink">{pastor.full_name}</p>
+                    <StatusBadge tone={pastor.speaker_role === "pregador" ? "warning" : "neutral"}>
+                      {pastor.speaker_role === "pregador" ? "Pregador" : "Pastor"}
+                    </StatusBadge>
+                  </div>
                   <p className="text-sm text-muted">
                     {pastor.phone || "Sem telefone"} - {pastor.district || "Sem distrito"}
                   </p>
