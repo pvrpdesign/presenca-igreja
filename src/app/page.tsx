@@ -9,13 +9,14 @@ import {
   CalendarCheck,
   CalendarDays,
   ClipboardCheck,
+  History as HistoryIcon,
   HeartHandshake,
   Search,
   UserPlus,
   UsersRound
 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
-import { MetricCard, Notice, PageHeader } from "@/components/ui";
+import { MetricCard, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   formatDateBR,
@@ -25,7 +26,7 @@ import {
   todayInputValue
 } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
-import type { Attendance, Member, Service, ServiceType, Visitor } from "@/lib/types";
+import type { Attendance, FollowUpHistory, Member, RegistryHistory, Service, ServiceType, Visitor } from "@/lib/types";
 
 type Summary = {
   total: number;
@@ -42,6 +43,32 @@ type AbsenceAlert = {
   recentServiceCount: number;
   lastServiceText: string;
 };
+
+type RecentActivity = {
+  id: string;
+  href: string;
+  title: string;
+  performedBy: string;
+  performedAt: string;
+  tone: "neutral" | "success" | "warning";
+};
+
+const followUpActionLabels: Record<FollowUpHistory["action_type"], string> = {
+  mensagem: "Mensagem registrada",
+  ligacao: "Ligação registrada",
+  visita: "Visita registrada",
+  oracao: "Oração registrada",
+  agradecimento: "Agradecimento registrado",
+  outro: "Contato registrado"
+};
+
+function formatActivityDate(value: string) {
+  return new Date(value).toLocaleString("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+    timeZone: "America/Bahia"
+  });
+}
 
 const emptyAbsenceAlert: AbsenceAlert = {
   missedTwoMembersCount: 0,
@@ -74,6 +101,9 @@ function DashboardContent() {
     music: 0
   });
   const [absenceAlert, setAbsenceAlert] = useState<AbsenceAlert>(emptyAbsenceAlert);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [isActivitiesLoading, setIsActivitiesLoading] = useState(false);
+  const [activitiesMessage, setActivitiesMessage] = useState("");
   const [checkInMessage, setCheckInMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isAlertLoading, setIsAlertLoading] = useState(false);
@@ -278,6 +308,93 @@ function DashboardContent() {
     setIsAlertLoading(false);
   }, [profile?.role]);
 
+  const loadRecentActivities = useCallback(async () => {
+    if (profile?.role !== "lideranca") {
+      setRecentActivities([]);
+      return;
+    }
+
+    setIsActivitiesLoading(true);
+    setActivitiesMessage("");
+
+    const [registryResponse, followUpResponse] = await Promise.all([
+      supabase
+        .from("registry_history")
+        .select("id, person_id, person_type, action, performed_by, performed_by_name, performed_at")
+        .order("performed_at", { ascending: false })
+        .limit(12),
+      supabase
+        .from("followup_history")
+        .select("id, person_id, person_type, action_type, performed_by_name, performed_at")
+        .order("performed_at", { ascending: false })
+        .limit(12)
+    ]);
+
+    const registryRows = (registryResponse.data ?? []) as RegistryHistory[];
+    const followUpRows = (followUpResponse.data ?? []) as Pick<
+      FollowUpHistory,
+      "id" | "person_id" | "person_type" | "action_type" | "performed_by_name" | "performed_at"
+    >[];
+
+    if (registryResponse.error || followUpResponse.error) {
+      setActivitiesMessage("Não foi possível carregar todo o histórico recente.");
+    }
+
+    const allRows = [...registryRows, ...followUpRows];
+    const idsFor = (personType: RegistryHistory["person_type"]) => [
+      ...new Set(allRows.filter((row) => row.person_type === personType).map((row) => row.person_id))
+    ];
+    const memberIds = idsFor("membro");
+    const visitorIds = idsFor("visitante");
+    const pastorIds = idsFor("pastor");
+    const musicIds = idsFor("musica");
+
+    const [membersResponse, visitorsResponse, pastorsResponse, musicResponse] = await Promise.all([
+      memberIds.length > 0
+        ? supabase.from("members").select("id, full_name").in("id", memberIds)
+        : Promise.resolve({ data: [], error: null }),
+      visitorIds.length > 0
+        ? supabase.from("visitors").select("id, full_name").in("id", visitorIds)
+        : Promise.resolve({ data: [], error: null }),
+      pastorIds.length > 0
+        ? supabase.from("pastors").select("id, full_name").in("id", pastorIds)
+        : Promise.resolve({ data: [], error: null }),
+      musicIds.length > 0
+        ? supabase.from("special_music").select("id, performer_name").in("id", musicIds)
+        : Promise.resolve({ data: [], error: null })
+    ]);
+
+    const personNames = new Map<string, string>();
+    (membersResponse.data ?? []).forEach((person) => personNames.set(`membro:${person.id}`, person.full_name));
+    (visitorsResponse.data ?? []).forEach((person) => personNames.set(`visitante:${person.id}`, person.full_name));
+    (pastorsResponse.data ?? []).forEach((person) => personNames.set(`pastor:${person.id}`, person.full_name));
+    (musicResponse.data ?? []).forEach((person) => personNames.set(`musica:${person.id}`, person.performer_name));
+
+    const registryActivities: RecentActivity[] = registryRows.map((entry) => ({
+      id: `registry:${entry.id}`,
+      href: `/pessoas/${entry.person_type}/${entry.person_id}`,
+      title: `${entry.action === "cadastrado" ? "Cadastro realizado" : entry.action === "arquivado" ? "Cadastro arquivado" : "Cadastro restaurado"}: ${personNames.get(`${entry.person_type}:${entry.person_id}`) ?? "Cadastro removido"}`,
+      performedBy: entry.performed_by_name,
+      performedAt: entry.performed_at,
+      tone: entry.action === "arquivado" ? "warning" : entry.action === "restaurado" ? "success" : "neutral"
+    }));
+    const followUpActivities: RecentActivity[] = followUpRows.map((entry) => ({
+      id: `followup:${entry.id}`,
+      href: `/pessoas/${entry.person_type}/${entry.person_id}`,
+      title: `${followUpActionLabels[entry.action_type]}: ${personNames.get(`${entry.person_type}:${entry.person_id}`) ?? "Cadastro removido"}`,
+      performedBy: entry.performed_by_name,
+      performedAt: entry.performed_at,
+      tone: "success"
+    }));
+
+    setRecentActivities(
+      [...registryActivities, ...followUpActivities]
+        .sort((first, second) => new Date(second.performedAt).getTime() - new Date(first.performedAt).getTime())
+        .slice(0, 10)
+    );
+    setIsActivitiesLoading(false);
+  }, [profile?.role]);
+
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
@@ -285,6 +402,10 @@ function DashboardContent() {
   useEffect(() => {
     loadAbsenceAlert();
   }, [loadAbsenceAlert]);
+
+  useEffect(() => {
+    void loadRecentActivities();
+  }, [loadRecentActivities]);
 
   async function handleStartCheckIn() {
     setCheckInMessage("");
@@ -507,6 +628,33 @@ function DashboardContent() {
           <MetricCard icon={BarChart3} label="Música Especial" tone="gold" value={summary.music} />
         </section>
       )}
+
+      {profile?.role === "lideranca" ? (
+        <section className="mt-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <HistoryIcon aria-hidden="true" className="text-wine" size={20} />
+            <h2 className="text-lg font-semibold text-ink">Atividades recentes</h2>
+          </div>
+          {activitiesMessage ? <p className="mb-3 text-sm text-wine">{activitiesMessage}</p> : null}
+          {isActivitiesLoading ? (
+            <p className="text-sm text-muted">Carregando atividades...</p>
+          ) : recentActivities.length === 0 ? (
+            <p className="text-sm text-muted">Nenhuma atividade registrada até o momento.</p>
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {recentActivities.map((activity) => (
+                <Link className="rounded-xl border border-line bg-paper p-3 transition hover:border-wine/30 hover:bg-wine/5" href={activity.href} key={activity.id}>
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <p className="font-semibold text-ink">{activity.title}</p>
+                    <StatusBadge tone={activity.tone}>{formatActivityDate(activity.performedAt)}</StatusBadge>
+                  </div>
+                  <p className="mt-2 text-sm text-muted">Responsável: {activity.performedBy}</p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }
