@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AlertTriangle, ShieldAlert } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { AdminMfaGate } from "@/components/AdminMfaGate";
 import { SessionTimeout } from "@/components/SessionTimeout";
 import { TermsAcceptanceGate } from "@/components/TermsAcceptanceGate";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -133,7 +134,9 @@ export function AuthGate({
   return (
     <AppShell>
       <SessionTimeout />
-      <TermsAcceptanceGate>{children}</TermsAcceptanceGate>
+      <AdminMfaGate required={Boolean(profile.is_admin)}>
+        <TermsAcceptanceGate>{children}</TermsAcceptanceGate>
+      </AdminMfaGate>
     </AppShell>
   );
 }
