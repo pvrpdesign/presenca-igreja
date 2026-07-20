@@ -30,7 +30,7 @@ export function SessionTimeout() {
     if (isSigningOutRef.current) return;
     isSigningOutRef.current = true;
     clearTimers();
-    await signOut();
+    await signOut("inatividade");
     router.replace("/login?motivo=inatividade");
   }, [clearTimers, router, signOut]);
 

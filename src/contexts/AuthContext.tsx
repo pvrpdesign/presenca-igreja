@@ -9,8 +9,9 @@ import {
   useState
 } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { registerAccessLogin, registerAccessLogout } from "@/lib/accessAudit";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import type { Profile } from "@/lib/types";
+import type { AccessLogoutReason, Profile } from "@/lib/types";
 
 type AuthContextValue = {
   authError: string | null;
@@ -18,7 +19,7 @@ type AuthContextValue = {
   session: Session | null;
   profile: Profile | null;
   refreshProfile: () => Promise<void>;
-  signOut: () => Promise<void>;
+  signOut: (reason?: AccessLogoutReason) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -120,6 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const { data } = sessionResponse;
       setSession(data.session);
+      if (data.session) void registerAccessLogin(data.session);
 
       if (data.session?.user.id) {
         const cachedProfile = readCachedProfile(data.session.user.id);
@@ -154,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setAuthError(null);
       setSession(nextSession);
       if (nextSession?.user.id) {
+        void registerAccessLogin(nextSession);
         const cachedProfile = readCachedProfile(nextSession.user.id);
         if (cachedProfile) {
           setProfile(cachedProfile);
@@ -173,12 +176,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [loadProfile]);
 
-  const signOut = useCallback(async () => {
+  const signOut = useCallback(async (reason: AccessLogoutReason = "manual") => {
+    if (session) await registerAccessLogout(session, reason);
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
     writeCachedProfile(null);
-  }, []);
+  }, [session]);
 
   const value = useMemo(
     () => ({

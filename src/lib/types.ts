@@ -7,6 +7,7 @@ export type PersonType = "membro" | "visitante" | "pastor" | "musica";
 export type FollowUpStatus = "pendente" | "acompanhado" | "removido";
 export type FollowUpActionType = "mensagem" | "ligacao" | "visita" | "oracao" | "agradecimento" | "outro";
 export type FollowUpOutcome = "realizado" | "sem_retorno";
+export type AccessLogoutReason = "manual" | "inatividade";
 
 export type Profile = {
   id: string;
@@ -80,6 +81,18 @@ export type RegistryHistory = {
   performed_by: string | null;
   performed_by_name: string;
   performed_at: string;
+};
+
+export type AccessAuditLog = {
+  id: string;
+  user_id: string | null;
+  user_name: string;
+  user_email: string | null;
+  user_role: UserRole;
+  session_id: string;
+  login_at: string;
+  logout_at: string | null;
+  logout_reason: AccessLogoutReason | null;
 };
 
 export type Pastor = {
@@ -267,6 +280,12 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      access_audit_logs: {
+        Row: AccessAuditLog;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       pastors: {
         Row: Pastor;
         Insert: {
@@ -393,6 +412,14 @@ export type Database = {
       get_followup_actor_names: {
         Args: { p_user_ids: string[] };
         Returns: { display_name: string; user_id: string }[];
+      };
+      register_access_login: {
+        Args: { p_session_id: string };
+        Returns: undefined;
+      };
+      register_access_logout: {
+        Args: { p_reason: AccessLogoutReason; p_session_id: string };
+        Returns: undefined;
       };
       get_member_checkin_service: {
         Args: { p_token: string };
