@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { SoftwareCopyright } from "@/components/SoftwareCopyright";
+import { InstallAppButton } from "@/components/InstallAppButton";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 
@@ -131,6 +132,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Link className="font-semibold text-forest underline" href="/termos">
               Termos de Uso
             </Link>
+          </div>
+          <div className="mt-3 flex justify-center">
+            <InstallAppButton className="secondary-button px-3 py-2" />
           </div>
           <SoftwareCopyright className="mt-3" />
         </footer>

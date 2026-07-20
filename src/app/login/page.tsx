@@ -10,6 +10,7 @@ import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Notice } from "@/components/ui";
 import { SoftwareCopyright } from "@/components/SoftwareCopyright";
+import { InstallAppButton } from "@/components/InstallAppButton";
 import type { UserRole } from "@/lib/types";
 
 export default function LoginPage() {
@@ -286,6 +287,7 @@ function LoginForm() {
             </>
           )}
         </button>
+        <InstallAppButton className="secondary-button mt-3 w-full" />
         <p className="mt-5 text-center text-xs leading-5 text-muted">
           Ao entrar, você declara ciência dos{" "}
           <Link className="font-semibold text-forest underline" href="/termos">
