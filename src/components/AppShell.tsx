@@ -10,6 +10,7 @@ import {
   HeartHandshake,
   Home,
   LogOut,
+  Search,
   Settings,
   ShieldCheck,
   UserPlus
@@ -26,7 +27,8 @@ const navigation = [
   { href: "/cultos", label: "Cultos", icon: CalendarDays },
   { href: "/cadastros", label: "Cadastros", icon: UserPlus },
   { href: "/acompanhamento", label: "Acomp.", icon: HeartHandshake },
-  { href: "/relatorios", label: "Relatórios", icon: BarChart3 }
+  { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
+  { href: "/busca", label: "Busca", icon: Search }
 ];
 
 const receptionNavigation = navigation.filter((item) =>
