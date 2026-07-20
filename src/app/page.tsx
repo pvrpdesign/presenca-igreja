@@ -70,12 +70,18 @@ type MonthSummary = {
   quietestService: { label: string; total: number } | null;
 };
 
-type MonthComparison = {
-  currentLabel: string;
+type ComparedServiceType = "quarta" | "sabado";
+
+type ServiceTypeMonthComparison = {
   current: MonthSummary;
-  previousLabel: string;
   previous: MonthSummary;
   percentageChange: number | null;
+};
+
+type MonthComparison = {
+  currentLabel: string;
+  previousLabel: string;
+  byServiceType: Record<ComparedServiceType, ServiceTypeMonthComparison>;
 };
 
 const followUpActionLabels: Record<FollowUpHistory["action_type"], string> = {
@@ -521,26 +527,36 @@ function DashboardContent() {
     const previousServices = services.filter(
       (service) => service.service_date >= dateInputValue(previousStart) && service.service_date <= dateInputValue(previousEnd)
     );
-    const currentServiceIds = new Set(currentServices.map((service) => service.id));
-    const previousServiceIds = new Set(previousServices.map((service) => service.id));
-    const currentSummary = summarizeMonth(
-      currentServices,
-      attendances.filter((attendance) => currentServiceIds.has(attendance.service_id))
-    );
-    const previousSummary = summarizeMonth(
-      previousServices,
-      attendances.filter((attendance) => previousServiceIds.has(attendance.service_id))
-    );
-    const percentageChange = previousSummary.average > 0
-      ? Math.round(((currentSummary.average - previousSummary.average) / previousSummary.average) * 100)
-      : null;
+    const compareType = (serviceType: ComparedServiceType): ServiceTypeMonthComparison => {
+      const currentTypeServices = currentServices.filter((service) => service.service_type === serviceType);
+      const previousTypeServices = previousServices.filter((service) => service.service_type === serviceType);
+      const currentServiceIds = new Set(currentTypeServices.map((service) => service.id));
+      const previousServiceIds = new Set(previousTypeServices.map((service) => service.id));
+      const currentSummary = summarizeMonth(
+        currentTypeServices,
+        attendances.filter((attendance) => currentServiceIds.has(attendance.service_id))
+      );
+      const previousSummary = summarizeMonth(
+        previousTypeServices,
+        attendances.filter((attendance) => previousServiceIds.has(attendance.service_id))
+      );
+
+      return {
+        current: currentSummary,
+        previous: previousSummary,
+        percentageChange: previousSummary.average > 0
+          ? Math.round(((currentSummary.average - previousSummary.average) / previousSummary.average) * 100)
+          : null
+      };
+    };
 
     setMonthComparison({
       currentLabel: monthLabel(currentStart),
-      current: currentSummary,
       previousLabel: monthLabel(previousStart),
-      previous: previousSummary,
-      percentageChange
+      byServiceType: {
+        quarta: compareType("quarta"),
+        sabado: compareType("sabado")
+      }
     });
     setIsMonthComparisonLoading(false);
   }, [canViewLeadershipContent]);
@@ -776,65 +792,31 @@ function DashboardContent() {
 
       {canViewLeadershipContent ? (
         <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <BarChart3 aria-hidden="true" className="text-wine" size={20} />
-                <h2 className="text-lg font-semibold text-ink">Comparativo mensal de frequência</h2>
-              </div>
-              <p className="mt-1 text-sm text-muted">Média de presentes por culto no mês atual e no mês anterior.</p>
+          <div>
+            <div className="flex items-center gap-2">
+              <BarChart3 aria-hidden="true" className="text-wine" size={20} />
+              <h2 className="text-lg font-semibold text-ink">Comparativo mensal de frequência</h2>
             </div>
-            {monthComparison && monthComparison.percentageChange !== null ? (
-              <StatusBadge tone={monthComparison.percentageChange >= 0 ? "success" : "warning"}>
-                {monthComparison.percentageChange > 0 ? <TrendingUp aria-hidden="true" className="mr-1" size={14} /> : null}
-                {monthComparison.percentageChange < 0 ? <TrendingDown aria-hidden="true" className="mr-1" size={14} /> : null}
-                {monthComparison.percentageChange === 0 ? <Minus aria-hidden="true" className="mr-1" size={14} /> : null}
-                {monthComparison.percentageChange > 0 ? "+" : ""}{monthComparison.percentageChange}% na média
-              </StatusBadge>
-            ) : null}
+            <p className="mt-1 text-sm text-muted">Sábados são comparados somente com sábados; quartas, somente com quartas. Cultos especiais não entram neste cálculo.</p>
           </div>
 
           {monthComparisonMessage ? <p className="mt-4 text-sm text-wine">{monthComparisonMessage}</p> : null}
           {isMonthComparisonLoading ? <p className="mt-4 text-sm text-muted">Calculando os dois últimos meses...</p> : null}
           {!isMonthComparisonLoading && monthComparison ? (
-            monthComparison.current.serviceCount === 0 ? (
-              <div className="mt-4">
-                <Notice title={`Nenhum culto cadastrado em ${monthComparison.currentLabel}.`} text="O comparativo aparecerá assim que o primeiro culto do mês tiver sido iniciado." />
-              </div>
-            ) : (
-              <>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <MonthlyMetric label="Média por culto" value={monthComparison.current.average.toFixed(1).replace(".", ",")} />
-                  <MonthlyMetric label="Total de presenças" value={monthComparison.current.attendanceTotal} />
-                  <MonthlyMetric label="Presenças de membros" value={monthComparison.current.members} />
-                  <MonthlyMetric label="Presenças de visitantes" value={monthComparison.current.visitors} />
-                </div>
-
-                <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                  <div className="rounded-xl border border-line bg-paper p-3">
-                    <p className="text-xs font-semibold uppercase text-muted">Período atual</p>
-                    <p className="mt-2 font-semibold text-ink">{monthComparison.currentLabel}</p>
-                    <p className="mt-1 text-sm text-muted">{monthComparison.current.serviceCount} culto(s) registrado(s).</p>
-                  </div>
-                  <div className="rounded-xl border border-line bg-paper p-3">
-                    <p className="text-xs font-semibold uppercase text-muted">Maior presença</p>
-                    <p className="mt-2 font-semibold text-ink">{monthComparison.current.busiestService?.label}</p>
-                    <p className="mt-1 text-sm text-muted">{monthComparison.current.busiestService?.total ?? 0} pessoas.</p>
-                  </div>
-                  <div className="rounded-xl border border-line bg-paper p-3">
-                    <p className="text-xs font-semibold uppercase text-muted">Menor presença</p>
-                    <p className="mt-2 font-semibold text-ink">{monthComparison.current.quietestService?.label}</p>
-                    <p className="mt-1 text-sm text-muted">{monthComparison.current.quietestService?.total ?? 0} pessoas.</p>
-                  </div>
-                </div>
-
-                <p className="mt-4 text-sm text-muted">
-                  {monthComparison.previous.serviceCount > 0
-                    ? `${monthComparison.previousLabel}: média de ${monthComparison.previous.average.toFixed(1).replace(".", ",")} pessoas em ${monthComparison.previous.serviceCount} culto(s).`
-                    : `Não há cultos cadastrados em ${monthComparison.previousLabel} para comparação.`}
-                </p>
-              </>
-            )
+            <div className="mt-5 space-y-4">
+              <ServiceTypeComparisonPanel
+                comparison={monthComparison.byServiceType.sabado}
+                currentLabel={monthComparison.currentLabel}
+                label="Cultos de sábado"
+                previousLabel={monthComparison.previousLabel}
+              />
+              <ServiceTypeComparisonPanel
+                comparison={monthComparison.byServiceType.quarta}
+                currentLabel={monthComparison.currentLabel}
+                label="Cultos de quarta-feira"
+                previousLabel={monthComparison.previousLabel}
+              />
+            </div>
           ) : null}
         </section>
       ) : null}
@@ -877,6 +859,70 @@ function DashboardContent() {
           <MetricCard icon={BarChart3} label="Música Especial" tone="gold" value={summary.music} />
         </section>
       )}
+    </div>
+  );
+}
+
+function ServiceTypeComparisonPanel({
+  comparison,
+  currentLabel,
+  label,
+  previousLabel
+}: {
+  comparison: ServiceTypeMonthComparison;
+  currentLabel: string;
+  label: string;
+  previousLabel: string;
+}) {
+  return (
+    <div className="rounded-card border border-line bg-paper/50 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h3 className="font-semibold text-ink">{label}</h3>
+        {comparison.percentageChange !== null ? (
+          <StatusBadge tone={comparison.percentageChange >= 0 ? "success" : "warning"}>
+            {comparison.percentageChange > 0 ? <TrendingUp aria-hidden="true" className="mr-1" size={14} /> : null}
+            {comparison.percentageChange < 0 ? <TrendingDown aria-hidden="true" className="mr-1" size={14} /> : null}
+            {comparison.percentageChange === 0 ? <Minus aria-hidden="true" className="mr-1" size={14} /> : null}
+            {comparison.percentageChange > 0 ? "+" : ""}{comparison.percentageChange}% na média
+          </StatusBadge>
+        ) : null}
+      </div>
+
+      {comparison.current.serviceCount === 0 ? (
+        <p className="mt-3 text-sm text-muted">Nenhum culto desta categoria foi realizado em {currentLabel}.</p>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MonthlyMetric label="Média por culto" value={comparison.current.average.toFixed(1).replace(".", ",")} />
+            <MonthlyMetric label="Total de presenças" value={comparison.current.attendanceTotal} />
+            <MonthlyMetric label="Presenças de membros" value={comparison.current.members} />
+            <MonthlyMetric label="Presenças de visitantes" value={comparison.current.visitors} />
+          </div>
+          <div className="mt-3 grid gap-3 lg:grid-cols-3">
+            <div className="rounded-xl border border-line bg-white p-3">
+              <p className="text-xs font-semibold uppercase text-muted">Período atual</p>
+              <p className="mt-2 font-semibold text-ink">{currentLabel}</p>
+              <p className="mt-1 text-sm text-muted">{comparison.current.serviceCount} culto(s) registrado(s).</p>
+            </div>
+            <div className="rounded-xl border border-line bg-white p-3">
+              <p className="text-xs font-semibold uppercase text-muted">Maior presença</p>
+              <p className="mt-2 font-semibold text-ink">{comparison.current.busiestService?.label}</p>
+              <p className="mt-1 text-sm text-muted">{comparison.current.busiestService?.total ?? 0} pessoas.</p>
+            </div>
+            <div className="rounded-xl border border-line bg-white p-3">
+              <p className="text-xs font-semibold uppercase text-muted">Menor presença</p>
+              <p className="mt-2 font-semibold text-ink">{comparison.current.quietestService?.label}</p>
+              <p className="mt-1 text-sm text-muted">{comparison.current.quietestService?.total ?? 0} pessoas.</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      <p className="mt-3 text-sm text-muted">
+        {comparison.previous.serviceCount > 0
+          ? `${previousLabel}: média de ${comparison.previous.average.toFixed(1).replace(".", ",")} pessoas em ${comparison.previous.serviceCount} culto(s) desta categoria.`
+          : `Não há cultos desta categoria em ${previousLabel} para comparação.`}
+      </p>
     </div>
   );
 }
