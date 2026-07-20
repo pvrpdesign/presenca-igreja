@@ -6,7 +6,8 @@ import { AuthGate } from "@/components/AuthGate";
 import { Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import type { AccessAuditLog, ApprovalStatus, Profile, UserRole } from "@/lib/types";
+import { CURRENT_TERMS_VERSION } from "@/lib/terms";
+import type { AccessAuditLog, ApprovalStatus, Profile, TermsAcceptance, UserRole } from "@/lib/types";
 
 type FilterStatus = "todos" | ApprovalStatus;
 
@@ -44,6 +45,7 @@ function UsersContent() {
   const { session } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [accessByUser, setAccessByUser] = useState<Record<string, AccessSummary>>({});
+  const [termsByUser, setTermsByUser] = useState<Record<string, TermsAcceptance>>({});
   const [roleByUser, setRoleByUser] = useState<Record<string, UserRole>>({});
   const [filter, setFilter] = useState<FilterStatus>("pendente");
   const [message, setMessage] = useState("");
@@ -52,7 +54,8 @@ function UsersContent() {
 
   const loadProfiles = useCallback(async () => {
     setIsLoading(true);
-    const [profilesResponse, accessResponse] = await Promise.all([
+    setMessage("");
+    const [profilesResponse, accessResponse, termsResponse] = await Promise.all([
       supabase
         .from("profiles")
         .select("*")
@@ -62,7 +65,12 @@ function UsersContent() {
         .from("access_audit_logs")
         .select("id, user_id, user_name, user_email, user_role, session_id, login_at, logout_at, logout_reason")
         .order("login_at", { ascending: false })
-        .limit(2000)
+        .limit(2000),
+      supabase
+        .from("terms_acceptances")
+        .select("id, user_id, user_name, user_email, terms_version, accepted_at")
+        .eq("terms_version", CURRENT_TERMS_VERSION)
+        .order("accepted_at", { ascending: false })
     ]);
 
     if (profilesResponse.error) {
@@ -101,6 +109,17 @@ function UsersContent() {
         }
       });
       setAccessByUser(summaries);
+    }
+
+    if (termsResponse.error) {
+      setTermsByUser({});
+      if (!profilesResponse.error) setMessage("Execute o SQL 29 no Supabase para visualizar o aceite dos Termos.");
+    } else {
+      setTermsByUser(Object.fromEntries(
+        ((termsResponse.data ?? []) as TermsAcceptance[])
+          .filter((acceptance): acceptance is TermsAcceptance & { user_id: string } => Boolean(acceptance.user_id))
+          .map((acceptance) => [acceptance.user_id, acceptance])
+      ));
     }
     setIsLoading(false);
   }, []);
@@ -193,6 +212,7 @@ function UsersContent() {
           {filteredProfiles.map((profile) => {
             const isPending = profile.approval_status === "pendente";
             const access = accessByUser[profile.id];
+            const termsAcceptance = termsByUser[profile.id];
             const hasBeenInactiveFor60Days = Boolean(
               access && Date.now() - new Date(access.lastLoginAt).getTime() >= 60 * 24 * 60 * 60 * 1000
             );
@@ -209,6 +229,18 @@ function UsersContent() {
                   <StatusBadge tone={profile.approval_status === "aprovado" ? "success" : profile.approval_status === "rejeitado" ? "danger" : "warning"}>
                     {statusLabels[profile.approval_status]}
                   </StatusBadge>
+                </div>
+
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-paper p-3 text-sm">
+                  <span className="font-semibold text-ink">Termos de Uso</span>
+                  {termsAcceptance ? (
+                    <span className="flex flex-wrap items-center gap-2">
+                      <StatusBadge tone="success">Aceito</StatusBadge>
+                      <span className="text-xs text-muted">{formatAccessDate(termsAcceptance.accepted_at)}</span>
+                    </span>
+                  ) : (
+                    <StatusBadge tone="warning">Aceite pendente</StatusBadge>
+                  )}
                 </div>
 
                 <div className="mb-4 rounded-xl border border-line bg-paper p-3">

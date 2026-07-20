@@ -95,6 +95,15 @@ export type AccessAuditLog = {
   logout_reason: AccessLogoutReason | null;
 };
 
+export type TermsAcceptance = {
+  id: string;
+  user_id: string | null;
+  user_name: string;
+  user_email: string | null;
+  terms_version: string;
+  accepted_at: string;
+};
+
 export type Pastor = {
   id: string;
   full_name: string;
@@ -286,6 +295,12 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      terms_acceptances: {
+        Row: TermsAcceptance;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       pastors: {
         Row: Pastor;
         Insert: {
@@ -419,6 +434,10 @@ export type Database = {
       };
       register_access_logout: {
         Args: { p_reason: AccessLogoutReason; p_session_id: string };
+        Returns: undefined;
+      };
+      accept_current_terms: {
+        Args: { p_terms_version: string };
         Returns: undefined;
       };
       get_member_checkin_service: {

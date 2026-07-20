@@ -134,6 +134,16 @@ create table if not exists public.access_audit_logs (
   logout_reason text check (logout_reason in ('manual', 'inatividade'))
 );
 
+create table if not exists public.terms_acceptances (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  user_name text not null,
+  user_email text,
+  terms_version text not null check (char_length(trim(terms_version)) between 8 and 40),
+  accepted_at timestamptz not null default now(),
+  unique (user_id, terms_version)
+);
+
 create table if not exists public.pastors (
   id uuid primary key default gen_random_uuid(),
   full_name text not null,
@@ -627,6 +637,35 @@ on public.access_audit_logs (user_id, login_at desc);
 create index if not exists access_audit_logs_login_idx
 on public.access_audit_logs (login_at desc);
 
+create or replace function public.accept_current_terms(p_terms_version text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null or char_length(trim(coalesce(p_terms_version, ''))) not between 8 and 40 then
+    raise exception 'Versão dos Termos inválida.';
+  end if;
+
+  insert into public.terms_acceptances (
+    user_id, user_name, user_email, terms_version
+  )
+  select
+    profile.id,
+    public.compact_display_name(profile.full_name),
+    profile.email,
+    trim(p_terms_version)
+  from public.profiles as profile
+  where profile.id = auth.uid()
+    and profile.approval_status = 'aprovado'
+  on conflict (user_id, terms_version) do nothing;
+end;
+$$;
+
+create index if not exists terms_acceptances_user_idx
+on public.terms_acceptances (user_id, accepted_at desc);
+
 alter table public.profiles enable row level security;
 alter table public.members enable row level security;
 alter table public.visitors enable row level security;
@@ -641,6 +680,7 @@ alter table public.visitor_sensitive_data enable row level security;
 alter table public.export_audit_logs enable row level security;
 alter table public.registry_history enable row level security;
 alter table public.access_audit_logs enable row level security;
+alter table public.terms_acceptances enable row level security;
 
 drop policy if exists "Users can read own profile" on public.profiles;
 create policy "Users can read own profile"
@@ -674,6 +714,11 @@ drop policy if exists "Administrators can read access audit logs" on public.acce
 create policy "Administrators can read access audit logs"
 on public.access_audit_logs for select to authenticated
 using (public.current_user_is_admin());
+
+drop policy if exists "Users can read own terms acceptance" on public.terms_acceptances;
+create policy "Users can read own terms acceptance"
+on public.terms_acceptances for select to authenticated
+using (user_id = auth.uid() or public.current_user_is_admin());
 
 drop policy if exists "Reception and leadership can read members" on public.members;
 create policy "Reception and leadership can read members"
@@ -1096,7 +1141,10 @@ grant select, insert, update, delete on public.visitor_sensitive_data to authent
 grant select, insert on public.export_audit_logs to authenticated;
 grant select on public.registry_history to authenticated;
 grant select on public.access_audit_logs to authenticated;
+grant select on public.terms_acceptances to authenticated;
 revoke all on function public.register_access_login(text) from public;
 revoke all on function public.register_access_logout(text, text) from public;
 grant execute on function public.register_access_login(text) to authenticated;
 grant execute on function public.register_access_logout(text, text) to authenticated;
+revoke all on function public.accept_current_terms(text) from public;
+grant execute on function public.accept_current_terms(text) to authenticated;

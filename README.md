@@ -78,13 +78,15 @@ O administrador inicial é associado ao usuário com e-mail `sistema@iasdcalcada
 
 13. Execute `supabase/28_access_audit.sql` para registrar entradas e encerramentos de sessão.
 
-14. Rode o app:
+14. Execute `supabase/29_terms_acceptance.sql` para exigir e registrar o aceite dos Termos de Uso.
+
+15. Rode o app:
 
 ```bash
 npm run dev
 ```
 
-15. Abra `http://localhost:3000`.
+16. Abra `http://localhost:3000`.
 
 ## Publicar na Vercel
 
@@ -132,6 +134,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/26_registry_archiving.sql` para arquivar e restaurar cadastros sem apagar históricos
 - `supabase/27_registry_responsibility_history.sql` para identificar os responsáveis por cadastros, arquivamentos e restaurações
 - `supabase/28_access_audit.sql` para auditar entradas e encerramentos de sessão
+- `supabase/29_terms_acceptance.sql` para registrar o aceite individual dos Termos de Uso
 
 Eles criam:
 

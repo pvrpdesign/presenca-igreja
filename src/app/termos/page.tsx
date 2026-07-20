@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, BookOpenCheck, Church, Mail, ShieldCheck } from "lucide-react";
 import { SoftwareCopyright } from "@/components/SoftwareCopyright";
 import { privacyContactEmail } from "@/lib/privacy";
+import { CURRENT_TERMS_DATE_LABEL } from "@/lib/terms";
 
 export const metadata: Metadata = {
   title: "Termos de Uso | IASD Calçada",
@@ -20,7 +21,7 @@ export default function TermsPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-wine">IASD Calçada</p>
             <h1 className="mt-1 text-2xl font-semibold text-ink sm:text-3xl">Termos de Uso</h1>
-            <p className="mt-2 text-sm text-muted">Última atualização: 19 de julho de 2026.</p>
+            <p className="mt-2 text-sm text-muted">Última atualização: {CURRENT_TERMS_DATE_LABEL}.</p>
           </div>
         </div>
 
