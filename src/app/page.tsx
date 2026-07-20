@@ -110,6 +110,7 @@ function DashboardContent() {
   const [isStartingCheckIn, setIsStartingCheckIn] = useState(false);
 
   const roleLabel = profile?.role === "lideranca" ? "Liderança" : "Recepção";
+  const canViewLeadershipContent = profile?.role === "lideranca" || Boolean(profile?.is_admin);
 
   const loadSummary = useCallback(async () => {
     setIsLoading(true);
@@ -309,7 +310,7 @@ function DashboardContent() {
   }, [profile?.role]);
 
   const loadRecentActivities = useCallback(async () => {
-    if (profile?.role !== "lideranca") {
+    if (!canViewLeadershipContent) {
       setRecentActivities([]);
       return;
     }
@@ -393,7 +394,7 @@ function DashboardContent() {
         .slice(0, 10)
     );
     setIsActivitiesLoading(false);
-  }, [profile?.role]);
+  }, [canViewLeadershipContent]);
 
   useEffect(() => {
     loadSummary();
@@ -617,20 +618,8 @@ function DashboardContent() {
         </section>
       ) : null}
 
-      {isLoading ? (
-        <Notice title="Carregando resumo..." />
-      ) : (
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <MetricCard icon={CalendarCheck} label="Total de presentes" value={summary.total} />
-          <MetricCard icon={UsersRound} label="Membros presentes" tone="gold" value={summary.members} />
-          <MetricCard icon={UserPlus} label="Visitantes presentes" tone="wine" value={summary.visitors} />
-          <MetricCard icon={HeartHandshake} label="Pastores presentes" value={summary.pastors} />
-          <MetricCard icon={BarChart3} label="Música Especial" tone="gold" value={summary.music} />
-        </section>
-      )}
-
-      {profile?.role === "lideranca" ? (
-        <section className="mt-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+      {canViewLeadershipContent ? (
+        <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
           <div className="mb-4 flex items-center gap-2">
             <HistoryIcon aria-hidden="true" className="text-wine" size={20} />
             <h2 className="text-lg font-semibold text-ink">Atividades recentes</h2>
@@ -655,6 +644,18 @@ function DashboardContent() {
           )}
         </section>
       ) : null}
+
+      {isLoading ? (
+        <Notice title="Carregando resumo..." />
+      ) : (
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <MetricCard icon={CalendarCheck} label="Total de presentes" value={summary.total} />
+          <MetricCard icon={UsersRound} label="Membros presentes" tone="gold" value={summary.members} />
+          <MetricCard icon={UserPlus} label="Visitantes presentes" tone="wine" value={summary.visitors} />
+          <MetricCard icon={HeartHandshake} label="Pastores presentes" value={summary.pastors} />
+          <MetricCard icon={BarChart3} label="Música Especial" tone="gold" value={summary.music} />
+        </section>
+      )}
     </div>
   );
 }
