@@ -1226,9 +1226,9 @@ function UnifiedRegistryContent() {
 
           {canArchive ? (
             <div className="mb-4 rounded-card border border-line bg-paper p-3">
-              <div className={`grid gap-2 ${registryView === "arquivados" && canDelete ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+              <div className="grid gap-2 sm:grid-cols-2">
                 <button
-                  className="secondary-button min-h-10 px-3 py-2"
+                  className="secondary-button min-h-10 whitespace-nowrap px-3 py-2"
                   disabled={filteredItems.length === 0 || isBulkDeleting}
                   onClick={toggleFilteredSelection}
                   type="button"
@@ -1236,7 +1236,7 @@ function UnifiedRegistryContent() {
                   {allFilteredSelected ? "Desmarcar filtro" : "Selecionar filtro"}
                 </button>
                 <button
-                  className="secondary-button min-h-10 px-3 py-2"
+                  className="secondary-button min-h-10 whitespace-nowrap px-3 py-2"
                   disabled={selectedItems.length === 0 || isBulkDeleting}
                   onClick={() => handleBulkArchive(registryView === "ativos")}
                   type="button"
@@ -1245,7 +1245,7 @@ function UnifiedRegistryContent() {
                   {isBulkDeleting ? "Processando..." : registryView === "ativos" ? "Arquivar selecionados" : "Restaurar selecionados"}
                 </button>
                 {registryView === "arquivados" && canDelete ? (
-                  <button className="danger-button min-h-10 px-3 py-2" disabled={selectedItems.length === 0 || isBulkDeleting} onClick={handleBulkDelete} type="button">
+                  <button className="danger-button min-h-10 whitespace-nowrap px-3 py-2 sm:col-span-2" disabled={selectedItems.length === 0 || isBulkDeleting} onClick={handleBulkDelete} type="button">
                     <Trash2 aria-hidden="true" size={16} /> Excluir definitivamente
                   </button>
                 ) : null}
