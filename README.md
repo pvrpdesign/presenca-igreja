@@ -74,13 +74,15 @@ O administrador inicial é associado ao usuário com e-mail `sistema@iasdcalcada
 
 11. Execute `supabase/26_registry_archiving.sql` para ativar arquivamento, restauração e proteção contra exclusões acidentais.
 
-12. Rode o app:
+12. Execute `supabase/27_registry_responsibility_history.sql` para registrar quem cadastrou, arquivou ou restaurou cada pessoa.
+
+13. Rode o app:
 
 ```bash
 npm run dev
 ```
 
-13. Abra `http://localhost:3000`.
+14. Abra `http://localhost:3000`.
 
 ## Publicar na Vercel
 
@@ -126,6 +128,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/24_followup_actor_names.sql` para exibir o responsável por acompanhamentos e agradecimentos
 - `supabase/25_followup_history.sql` para preservar o histórico de cada contato realizado pela liderança
 - `supabase/26_registry_archiving.sql` para arquivar e restaurar cadastros sem apagar históricos
+- `supabase/27_registry_responsibility_history.sql` para identificar os responsáveis por cadastros, arquivamentos e restaurações
 
 Eles criam:
 

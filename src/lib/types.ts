@@ -72,6 +72,16 @@ export type ExportAuditLog = {
   created_at: string;
 };
 
+export type RegistryHistory = {
+  id: string;
+  person_id: string;
+  person_type: PersonType;
+  action: "cadastrado" | "arquivado" | "restaurado";
+  performed_by: string | null;
+  performed_by_name: string;
+  performed_at: string;
+};
+
 export type Pastor = {
   id: string;
   full_name: string;
@@ -248,6 +258,12 @@ export type Database = {
           filters?: Record<string, string | number | boolean | null>;
           created_at?: string;
         };
+        Update: never;
+        Relationships: [];
+      };
+      registry_history: {
+        Row: RegistryHistory;
+        Insert: never;
         Update: never;
         Relationships: [];
       };

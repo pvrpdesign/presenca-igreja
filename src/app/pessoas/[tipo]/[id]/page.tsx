@@ -22,6 +22,7 @@ import type {
   Member,
   Pastor,
   PersonType,
+  RegistryHistory,
   Service,
   SpecialMusic,
   Visitor,
@@ -72,6 +73,7 @@ function PersonProfileContent() {
   const [person, setPerson] = useState<PersonRecord | null>(null);
   const [attendances, setAttendances] = useState<AttendanceRow[]>([]);
   const [history, setHistory] = useState<FollowUpHistory[]>([]);
+  const [registryHistory, setRegistryHistory] = useState<RegistryHistory[]>([]);
   const [saturdayServices, setSaturdayServices] = useState<SaturdayService[]>([]);
   const [sensitiveData, setSensitiveData] = useState<Pick<VisitorSensitiveData, "prayer_request" | "notes"> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,7 +97,7 @@ function PersonProfileContent() {
           ? supabase.from("pastors").select("*").eq("id", params.id).maybeSingle()
           : supabase.from("special_music").select("*").eq("id", params.id).maybeSingle();
 
-    const [personResponse, attendanceResponse, historyResponse, servicesResponse, sensitiveResponse] = await Promise.all([
+    const [personResponse, attendanceResponse, historyResponse, registryHistoryResponse, servicesResponse, sensitiveResponse] = await Promise.all([
       personRequest,
       supabase
         .from("attendances")
@@ -111,6 +113,13 @@ function PersonProfileContent() {
         .eq("person_id", params.id)
         .order("performed_at", { ascending: false })
         .limit(200),
+      supabase
+        .from("registry_history")
+        .select("id, person_id, person_type, action, performed_by, performed_by_name, performed_at")
+        .eq("person_type", kind)
+        .eq("person_id", params.id)
+        .order("performed_at", { ascending: false })
+        .limit(100),
       supabase
         .from("services")
         .select("id, service_date")
@@ -134,13 +143,14 @@ function PersonProfileContent() {
       return;
     }
 
-    if (attendanceResponse.error || historyResponse.error || servicesResponse.error) {
+    if (attendanceResponse.error || historyResponse.error || registryHistoryResponse.error || servicesResponse.error) {
       setErrorMessage("Não foi possível carregar todos os dados desta ficha.");
     }
 
     setPerson(personResponse.data as PersonRecord);
     setAttendances((attendanceResponse.data ?? []) as AttendanceRow[]);
     setHistory((historyResponse.data ?? []) as FollowUpHistory[]);
+    setRegistryHistory((registryHistoryResponse.data ?? []) as RegistryHistory[]);
     setSaturdayServices((servicesResponse.data ?? []) as SaturdayService[]);
     setSensitiveData((sensitiveResponse.data ?? null) as Pick<VisitorSensitiveData, "prayer_request" | "notes"> | null);
     setIsLoading(false);
@@ -269,6 +279,32 @@ function PersonProfileContent() {
           )}
         </section>
       </div>
+
+      <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-ink">Responsabilidade do cadastro</h2>
+          <StatusBadge>{registryHistory.length}</StatusBadge>
+        </div>
+        {registryHistory.length === 0 ? (
+          <Notice
+            title="Histórico ainda não disponível"
+            text="Execute o SQL 27 no Supabase para identificar quem cadastrou, arquivou ou restaurou este registro."
+            tone="warning"
+          />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {registryHistory.map((entry) => (
+              <article className="rounded-xl border border-line bg-paper p-3" key={entry.id}>
+                <StatusBadge tone={entry.action === "arquivado" ? "warning" : entry.action === "restaurado" ? "success" : "neutral"}>
+                  {entry.action === "cadastrado" ? "Cadastro realizado" : entry.action === "arquivado" ? "Cadastro arquivado" : "Cadastro restaurado"}
+                </StatusBadge>
+                <p className="mt-2 font-semibold text-ink">{entry.performed_by_name}</p>
+                <p className="mt-1 text-xs text-muted">{formatActionDate(entry.performed_at)}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
