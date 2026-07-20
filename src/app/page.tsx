@@ -11,7 +11,10 @@ import {
   ClipboardCheck,
   History as HistoryIcon,
   HeartHandshake,
+  Minus,
   Search,
+  TrendingDown,
+  TrendingUp,
   UserPlus,
   UsersRound
 } from "lucide-react";
@@ -54,6 +57,27 @@ type RecentActivity = {
   tone: "neutral" | "success" | "warning";
 };
 
+type MonthlyService = Pick<Service, "id" | "service_date" | "service_type" | "title">;
+type MonthlyAttendance = Pick<Attendance, "person_type" | "service_id">;
+
+type MonthSummary = {
+  attendanceTotal: number;
+  average: number;
+  members: number;
+  visitors: number;
+  serviceCount: number;
+  busiestService: { label: string; total: number } | null;
+  quietestService: { label: string; total: number } | null;
+};
+
+type MonthComparison = {
+  currentLabel: string;
+  current: MonthSummary;
+  previousLabel: string;
+  previous: MonthSummary;
+  percentageChange: number | null;
+};
+
 const followUpActionLabels: Record<FollowUpHistory["action_type"], string> = {
   mensagem: "Mensagem registrada",
   ligacao: "Ligação registrada",
@@ -69,6 +93,43 @@ function formatActivityDate(value: string) {
     timeStyle: "short",
     timeZone: "America/Bahia"
   });
+}
+
+function dateInputValue(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function monthLabel(date: Date) {
+  const label = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(date);
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function summarizeMonth(services: MonthlyService[], attendances: MonthlyAttendance[]): MonthSummary {
+  const totalsByService = new Map(services.map((service) => [service.id, 0]));
+  attendances.forEach((attendance) => {
+    totalsByService.set(attendance.service_id, (totalsByService.get(attendance.service_id) ?? 0) + 1);
+  });
+
+  const rankedServices = services
+    .map((service) => ({
+      label: service.title || `${SERVICE_LABELS[service.service_type]} em ${formatDateBR(service.service_date)}`,
+      total: totalsByService.get(service.id) ?? 0,
+      date: service.service_date
+    }))
+    .sort((first, second) => second.total - first.total || second.date.localeCompare(first.date));
+  const quietest = [...rankedServices].sort(
+    (first, second) => first.total - second.total || second.date.localeCompare(first.date)
+  )[0];
+
+  return {
+    attendanceTotal: attendances.length,
+    average: services.length > 0 ? attendances.length / services.length : 0,
+    members: attendances.filter((attendance) => attendance.person_type === "membro").length,
+    visitors: attendances.filter((attendance) => attendance.person_type === "visitante").length,
+    serviceCount: services.length,
+    busiestService: rankedServices[0] ? { label: rankedServices[0].label, total: rankedServices[0].total } : null,
+    quietestService: quietest ? { label: quietest.label, total: quietest.total } : null
+  };
 }
 
 const emptyAbsenceAlert: AbsenceAlert = {
@@ -104,6 +165,9 @@ function DashboardContent() {
   });
   const [absenceAlert, setAbsenceAlert] = useState<AbsenceAlert>(emptyAbsenceAlert);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [monthComparison, setMonthComparison] = useState<MonthComparison | null>(null);
+  const [isMonthComparisonLoading, setIsMonthComparisonLoading] = useState(false);
+  const [monthComparisonMessage, setMonthComparisonMessage] = useState("");
   const [isActivitiesLoading, setIsActivitiesLoading] = useState(false);
   const [activitiesMessage, setActivitiesMessage] = useState("");
   const [checkInMessage, setCheckInMessage] = useState("");
@@ -403,6 +467,84 @@ function DashboardContent() {
     setIsActivitiesLoading(false);
   }, [canViewLeadershipContent]);
 
+  const loadMonthComparison = useCallback(async () => {
+    if (!canViewLeadershipContent) {
+      setMonthComparison(null);
+      return;
+    }
+
+    setIsMonthComparisonLoading(true);
+    setMonthComparisonMessage("");
+
+    const now = new Date();
+    const currentStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentEnd = now;
+    const previousStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    const { data: servicesData, error: servicesError } = await supabase
+      .from("services")
+      .select("id, service_date, service_type, title")
+      .gte("service_date", dateInputValue(previousStart))
+      .lte("service_date", dateInputValue(currentEnd))
+      .order("service_date", { ascending: true })
+      .limit(500);
+
+    if (servicesError) {
+      setMonthComparison(null);
+      setMonthComparisonMessage("Não foi possível carregar o comparativo mensal.");
+      setIsMonthComparisonLoading(false);
+      return;
+    }
+
+    const services = (servicesData ?? []) as MonthlyService[];
+    const serviceIds = services.map((service) => service.id);
+    const { data: attendancesData, error: attendancesError } = serviceIds.length > 0
+      ? await supabase
+          .from("attendances")
+          .select("person_type, service_id")
+          .in("service_id", serviceIds)
+          .limit(10000)
+      : { data: [], error: null };
+
+    if (attendancesError) {
+      setMonthComparison(null);
+      setMonthComparisonMessage("Os cultos foram encontrados, mas não foi possível carregar as presenças.");
+      setIsMonthComparisonLoading(false);
+      return;
+    }
+
+    const attendances = (attendancesData ?? []) as MonthlyAttendance[];
+    const currentServices = services.filter(
+      (service) => service.service_date >= dateInputValue(currentStart) && service.service_date <= dateInputValue(currentEnd)
+    );
+    const previousServices = services.filter(
+      (service) => service.service_date >= dateInputValue(previousStart) && service.service_date <= dateInputValue(previousEnd)
+    );
+    const currentServiceIds = new Set(currentServices.map((service) => service.id));
+    const previousServiceIds = new Set(previousServices.map((service) => service.id));
+    const currentSummary = summarizeMonth(
+      currentServices,
+      attendances.filter((attendance) => currentServiceIds.has(attendance.service_id))
+    );
+    const previousSummary = summarizeMonth(
+      previousServices,
+      attendances.filter((attendance) => previousServiceIds.has(attendance.service_id))
+    );
+    const percentageChange = previousSummary.average > 0
+      ? Math.round(((currentSummary.average - previousSummary.average) / previousSummary.average) * 100)
+      : null;
+
+    setMonthComparison({
+      currentLabel: monthLabel(currentStart),
+      current: currentSummary,
+      previousLabel: monthLabel(previousStart),
+      previous: previousSummary,
+      percentageChange
+    });
+    setIsMonthComparisonLoading(false);
+  }, [canViewLeadershipContent]);
+
   useEffect(() => {
     loadSummary();
   }, [loadSummary]);
@@ -414,6 +556,10 @@ function DashboardContent() {
   useEffect(() => {
     void loadRecentActivities();
   }, [loadRecentActivities]);
+
+  useEffect(() => {
+    void loadMonthComparison();
+  }, [loadMonthComparison]);
 
   async function handleStartCheckIn() {
     setCheckInMessage("");
@@ -630,6 +776,71 @@ function DashboardContent() {
 
       {canViewLeadershipContent ? (
         <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <BarChart3 aria-hidden="true" className="text-wine" size={20} />
+                <h2 className="text-lg font-semibold text-ink">Comparativo mensal de frequência</h2>
+              </div>
+              <p className="mt-1 text-sm text-muted">Média de presentes por culto no mês atual e no mês anterior.</p>
+            </div>
+            {monthComparison && monthComparison.percentageChange !== null ? (
+              <StatusBadge tone={monthComparison.percentageChange >= 0 ? "success" : "warning"}>
+                {monthComparison.percentageChange > 0 ? <TrendingUp aria-hidden="true" className="mr-1" size={14} /> : null}
+                {monthComparison.percentageChange < 0 ? <TrendingDown aria-hidden="true" className="mr-1" size={14} /> : null}
+                {monthComparison.percentageChange === 0 ? <Minus aria-hidden="true" className="mr-1" size={14} /> : null}
+                {monthComparison.percentageChange > 0 ? "+" : ""}{monthComparison.percentageChange}% na média
+              </StatusBadge>
+            ) : null}
+          </div>
+
+          {monthComparisonMessage ? <p className="mt-4 text-sm text-wine">{monthComparisonMessage}</p> : null}
+          {isMonthComparisonLoading ? <p className="mt-4 text-sm text-muted">Calculando os dois últimos meses...</p> : null}
+          {!isMonthComparisonLoading && monthComparison ? (
+            monthComparison.current.serviceCount === 0 ? (
+              <div className="mt-4">
+                <Notice title={`Nenhum culto cadastrado em ${monthComparison.currentLabel}.`} text="O comparativo aparecerá assim que o primeiro culto do mês tiver sido iniciado." />
+              </div>
+            ) : (
+              <>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <MonthlyMetric label="Média por culto" value={monthComparison.current.average.toFixed(1).replace(".", ",")} />
+                  <MonthlyMetric label="Total de presenças" value={monthComparison.current.attendanceTotal} />
+                  <MonthlyMetric label="Presenças de membros" value={monthComparison.current.members} />
+                  <MonthlyMetric label="Presenças de visitantes" value={monthComparison.current.visitors} />
+                </div>
+
+                <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                  <div className="rounded-xl border border-line bg-paper p-3">
+                    <p className="text-xs font-semibold uppercase text-muted">Período atual</p>
+                    <p className="mt-2 font-semibold text-ink">{monthComparison.currentLabel}</p>
+                    <p className="mt-1 text-sm text-muted">{monthComparison.current.serviceCount} culto(s) registrado(s).</p>
+                  </div>
+                  <div className="rounded-xl border border-line bg-paper p-3">
+                    <p className="text-xs font-semibold uppercase text-muted">Maior presença</p>
+                    <p className="mt-2 font-semibold text-ink">{monthComparison.current.busiestService?.label}</p>
+                    <p className="mt-1 text-sm text-muted">{monthComparison.current.busiestService?.total ?? 0} pessoas.</p>
+                  </div>
+                  <div className="rounded-xl border border-line bg-paper p-3">
+                    <p className="text-xs font-semibold uppercase text-muted">Menor presença</p>
+                    <p className="mt-2 font-semibold text-ink">{monthComparison.current.quietestService?.label}</p>
+                    <p className="mt-1 text-sm text-muted">{monthComparison.current.quietestService?.total ?? 0} pessoas.</p>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm text-muted">
+                  {monthComparison.previous.serviceCount > 0
+                    ? `${monthComparison.previousLabel}: média de ${monthComparison.previous.average.toFixed(1).replace(".", ",")} pessoas em ${monthComparison.previous.serviceCount} culto(s).`
+                    : `Não há cultos cadastrados em ${monthComparison.previousLabel} para comparação.`}
+                </p>
+              </>
+            )
+          ) : null}
+        </section>
+      ) : null}
+
+      {canViewLeadershipContent ? (
+        <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
           <div className="mb-4 flex items-center gap-2">
             <HistoryIcon aria-hidden="true" className="text-wine" size={20} />
             <h2 className="text-lg font-semibold text-ink">Atividades recentes</h2>
@@ -666,6 +877,15 @@ function DashboardContent() {
           <MetricCard icon={BarChart3} label="Música Especial" tone="gold" value={summary.music} />
         </section>
       )}
+    </div>
+  );
+}
+
+function MonthlyMetric({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-line bg-paper p-3">
+      <p className="text-sm text-muted">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-ink">{value}</p>
     </div>
   );
 }
