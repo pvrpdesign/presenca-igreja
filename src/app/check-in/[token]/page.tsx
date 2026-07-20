@@ -5,6 +5,7 @@ import Link from "next/link";
 import { CheckCircle2, Church, LoaderCircle, Phone, ShieldCheck } from "lucide-react";
 import { useParams } from "next/navigation";
 import { Field, Notice } from "@/components/ui";
+import { SoftwareCopyright } from "@/components/SoftwareCopyright";
 import { supabase } from "@/lib/supabase";
 
 type CheckinResult = {
@@ -179,6 +180,7 @@ export default function MemberCheckinPage() {
           <Link className="mt-2 inline-block font-semibold text-forest underline" href="/privacidade">
             Aviso de Privacidade e canal de atendimento
           </Link>
+          <SoftwareCopyright className="mt-3 border-t border-line pt-3" />
         </div>
       </div>
     </main>

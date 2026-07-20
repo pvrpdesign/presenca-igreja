@@ -8,6 +8,7 @@ import { KeyRound, LogIn, Mail, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Notice } from "@/components/ui";
+import { SoftwareCopyright } from "@/components/SoftwareCopyright";
 import type { UserRole } from "@/lib/types";
 
 export default function LoginPage() {
@@ -290,6 +291,7 @@ function LoginForm() {
           </Link>
           .
         </p>
+        <SoftwareCopyright className="mt-3 border-t border-line pt-3" />
       </section>
     </main>
   );

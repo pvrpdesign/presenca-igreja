@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Church, Mail, MapPin, ShieldCheck } from "lucide-react";
+import { SoftwareCopyright } from "@/components/SoftwareCopyright";
 import { privacyContactEmail } from "@/lib/privacy";
 
 export const metadata: Metadata = {
@@ -19,7 +20,7 @@ export default function PrivacyPage() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-forest">IASD Calçada</p>
             <h1 className="mt-1 text-2xl font-semibold text-ink sm:text-3xl">Aviso de Privacidade</h1>
-            <p className="mt-2 text-sm text-muted">Última atualização: 18 de julho de 2026.</p>
+            <p className="mt-2 text-sm text-muted">Última atualização: 19 de julho de 2026.</p>
           </div>
         </div>
 
@@ -120,6 +121,15 @@ export default function PrivacyPage() {
               </div>
             </div>
           </section>
+
+          <section>
+            <h2 className="text-lg font-semibold text-ink">8. Titularidade do software</h2>
+            <p className="mt-2">
+              Os direitos relativos ao software pertencem a Paulo Victor Silva de Oliveira LTDA,
+              CNPJ 57.152.299/0001-17. Essa identificação não altera a responsabilidade da IASD
+              Calçada pelas decisões relacionadas ao tratamento dos dados pessoais neste sistema.
+            </p>
+          </section>
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3 border-t border-line pt-5">
@@ -132,8 +142,8 @@ export default function PrivacyPage() {
             IASD Calçada
           </span>
         </div>
+        <SoftwareCopyright className="mt-5 border-t border-line pt-5" />
       </article>
     </main>
   );
 }
-

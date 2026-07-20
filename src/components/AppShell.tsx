@@ -14,6 +14,7 @@ import {
   UserPlus
 } from "lucide-react";
 import clsx from "clsx";
+import { SoftwareCopyright } from "@/components/SoftwareCopyright";
 import { useAuth } from "@/contexts/AuthContext";
 
 const navigation = [
@@ -119,6 +120,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link className="font-semibold text-forest underline" href="/privacidade">
             Aviso de Privacidade e canal de atendimento
           </Link>
+          <SoftwareCopyright className="mt-3" />
         </footer>
       </main>
 
