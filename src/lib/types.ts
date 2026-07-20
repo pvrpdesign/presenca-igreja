@@ -83,6 +83,20 @@ export type RegistryHistory = {
   performed_at: string;
 };
 
+export type PersonMergeLog = {
+  id: string;
+  person_type: PersonType;
+  primary_person_id: string;
+  duplicate_person_id: string;
+  primary_name: string;
+  duplicate_name: string;
+  primary_snapshot: Record<string, unknown>;
+  duplicate_snapshot: Record<string, unknown>;
+  merged_by: string | null;
+  merged_by_name: string;
+  merged_at: string;
+};
+
 export type AccessAuditLog = {
   id: string;
   user_id: string | null;
@@ -307,6 +321,12 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      person_merge_logs: {
+        Row: PersonMergeLog;
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       access_audit_logs: {
         Row: AccessAuditLog;
         Insert: never;
@@ -463,6 +483,14 @@ export type Database = {
       accept_current_terms: {
         Args: { p_terms_version: string };
         Returns: undefined;
+      };
+      merge_duplicate_person: {
+        Args: {
+          p_duplicate_id: string;
+          p_person_type: PersonType;
+          p_primary_id: string;
+        };
+        Returns: Record<string, string>;
       };
       get_member_checkin_service: {
         Args: { p_token: string };

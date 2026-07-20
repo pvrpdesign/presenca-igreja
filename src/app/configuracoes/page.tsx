@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { RefreshCw, Save, Settings } from "lucide-react";
+import { GitMerge, RefreshCw, Save, Settings } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Notice, PageHeader } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
@@ -81,6 +82,19 @@ function SettingsContent() {
           <Notice title={message} tone={message.startsWith("Configurações") ? "success" : "warning"} />
         </div>
       ) : null}
+
+      <section className="mb-5 flex flex-col gap-4 rounded-card border border-line bg-white p-4 shadow-soft sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <GitMerge aria-hidden="true" className="text-wine" size={20} />
+            <h2 className="text-lg font-semibold text-ink">Cadastros duplicados</h2>
+          </div>
+          <p className="mt-1 text-sm text-muted">Localize e unifique cadastros repetidos sem perder presenças ou acompanhamentos.</p>
+        </div>
+        <Link className="secondary-button shrink-0" href="/duplicados">
+          Abrir unificação
+        </Link>
+      </section>
 
       <form className="space-y-5" onSubmit={saveSettings}>
         <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">

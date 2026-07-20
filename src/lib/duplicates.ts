@@ -39,14 +39,37 @@ function normalizePlace(person: DuplicatePersonCandidate) {
   return normalizePersonName(person.neighborhood ?? person.location ?? "");
 }
 
+export function areLikelyDuplicatePeople(
+  first: DuplicatePersonCandidate,
+  second: DuplicatePersonCandidate
+) {
+  const firstName = normalizePersonName(first.full_name);
+  const secondName = normalizePersonName(second.full_name);
+  const firstPhone = normalizePhoneDigits(first.phone);
+  const secondPhone = normalizePhoneDigits(second.phone);
+
+  if (
+    firstPhone.length >= 8
+    && secondPhone.length >= 8
+    && firstPhone === secondPhone
+  ) {
+    return true;
+  }
+
+  if (!firstName || firstName !== secondName) return false;
+  if (!firstPhone || !secondPhone) return true;
+
+  const firstPlace = normalizePlace(first);
+  const secondPlace = normalizePlace(second);
+  return Boolean(firstPlace && secondPlace && firstPlace === secondPlace);
+}
+
 export function findPotentialDuplicate<T extends DuplicatePersonCandidate>(
   people: T[],
   candidate: DuplicatePersonCandidate,
   ignoreId?: string | null
 ) {
   const candidateName = normalizePersonName(candidate.full_name);
-  const candidatePhone = normalizePhoneDigits(candidate.phone);
-  const candidatePlace = normalizePlace(candidate);
 
   if (!candidateName) return null;
 
@@ -54,26 +77,7 @@ export function findPotentialDuplicate<T extends DuplicatePersonCandidate>(
     people.find((person) => {
       if (ignoreId && person.id === ignoreId) return false;
 
-      const personPhone = normalizePhoneDigits(person.phone);
-
-      if (
-        candidatePhone.length >= 8 &&
-        personPhone.length >= 8 &&
-        candidatePhone === personPhone
-      ) {
-        return true;
-      }
-
-      if (normalizePersonName(person.full_name) !== candidateName) {
-        return false;
-      }
-
-      if (!candidatePhone || !personPhone) {
-        return true;
-      }
-
-      const personPlace = normalizePlace(person);
-      return Boolean(candidatePlace && personPlace && candidatePlace === personPlace);
+      return areLikelyDuplicatePeople(person, candidate);
     }) ?? null
   );
 }
