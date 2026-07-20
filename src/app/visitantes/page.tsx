@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Edit3, FileDown, FileText, MessageCircle, Save, Search, Trash2, UserPlus, X } from "lucide-react";
+import { Archive, Edit3, FileDown, FileText, MessageCircle, Save, Search, UserPlus, X } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
@@ -47,7 +47,7 @@ export default function VisitorsPage() {
 
 function VisitorsContent() {
   const { profile, session } = useAuth();
-  const canDeleteVisitors = profile?.is_admin === true;
+  const canArchiveVisitors = profile?.role === "lideranca";
   const canExportVisitors = profile?.role === "lideranca";
   const [form, setForm] = useState(initialForm);
   const [editingVisitorId, setEditingVisitorId] = useState<string | null>(null);
@@ -64,6 +64,7 @@ function VisitorsContent() {
     const { data } = await supabase
       .from("visitors")
       .select("*")
+      .is("archived_at", null)
       .order("full_name", { ascending: true })
       .limit(500);
 
@@ -234,10 +235,10 @@ function VisitorsContent() {
   }
 
   async function handleDelete(visitor: Visitor) {
-    if (!canDeleteVisitors) return;
+    if (!canArchiveVisitors) return;
 
     const confirmed = window.confirm(
-      `Excluir o cadastro de ${visitor.full_name}? As presenças deste visitante também serão removidas.`
+      `Arquivar o cadastro de ${visitor.full_name}? As presenças e acompanhamentos serão preservados.`
     );
 
     if (!confirmed) return;
@@ -245,24 +246,12 @@ function VisitorsContent() {
     setMessage("");
     setDeletingVisitorId(visitor.id);
 
-    const { error: attendanceError } = await supabase
-      .from("attendances")
-      .delete()
-      .eq("person_type", "visitante")
-      .eq("person_id", visitor.id);
-
-    if (attendanceError) {
-      setMessage("Não foi possível excluir. Rode o SQL 08 no Supabase e tente novamente.");
-      setDeletingVisitorId(null);
-      return;
-    }
-
-    const { error } = await supabase.from("visitors").delete().eq("id", visitor.id);
+    const { error } = await supabase.from("visitors").update({ archived_at: new Date().toISOString() }).eq("id", visitor.id);
 
     setDeletingVisitorId(null);
 
     if (error) {
-      setMessage("Não foi possível excluir o visitante.");
+      setMessage("Não foi possível arquivar o visitante. Execute o SQL 26 no Supabase.");
       return;
     }
 
@@ -270,7 +259,7 @@ function VisitorsContent() {
       resetForm();
     }
 
-    setMessage("Visitante excluído com sucesso.");
+    setMessage("Visitante arquivado com sucesso.");
     await loadVisitors();
   }
 
@@ -566,15 +555,15 @@ function VisitorsContent() {
                         <Edit3 aria-hidden="true" size={15} />
                         Editar
                       </button>
-                      {canDeleteVisitors ? (
+                      {canArchiveVisitors ? (
                         <button
-                          className="danger-button min-h-9 px-3 py-2"
+                          className="secondary-button min-h-9 px-3 py-2"
                           disabled={deletingVisitorId === visitor.id}
                           onClick={() => handleDelete(visitor)}
                           type="button"
                         >
-                          <Trash2 aria-hidden="true" size={15} />
-                          {deletingVisitorId === visitor.id ? "Excluindo..." : "Excluir"}
+                          <Archive aria-hidden="true" size={15} />
+                          {deletingVisitorId === visitor.id ? "Arquivando..." : "Arquivar"}
                         </button>
                       ) : null}
                     </div>

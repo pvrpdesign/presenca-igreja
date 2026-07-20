@@ -410,21 +410,25 @@ function AttendanceContent() {
         .select("id, full_name, phone, neighborhood, ministry, status")
         .ilike("full_name", `%${term}%`)
         .eq("status", "ativo")
+        .is("archived_at", null)
         .order("full_name", { ascending: true }),
       supabase
         .from("visitors")
         .select("id, full_name, phone, location")
         .ilike("full_name", `%${term}%`)
+        .is("archived_at", null)
         .order("full_name", { ascending: true }),
       supabase
         .from("pastors")
         .select("id, full_name, phone, district")
         .ilike("full_name", `%${term}%`)
+        .is("archived_at", null)
         .order("full_name", { ascending: true }),
       supabase
         .from("special_music")
         .select("id, performer_name, contact, church, visit_date")
         .ilike("performer_name", `%${term}%`)
+        .is("archived_at", null)
         .order("performer_name", { ascending: true })
     ]);
 
@@ -822,6 +826,7 @@ function AttendanceContent() {
     const { data: existingVisitors } = await supabase
       .from("visitors")
       .select("id, full_name, phone, location")
+      .is("archived_at", null)
       .limit(1000);
 
     const duplicate = findPotentialDuplicate(

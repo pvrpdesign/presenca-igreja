@@ -4,13 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
+  Archive,
   Edit3,
   FileDown,
   FileText,
   FileSpreadsheet,
   Save,
   Search,
-  Trash2,
   Upload,
   UsersRound,
   X
@@ -81,6 +81,7 @@ function MembersContent() {
     const { data } = await supabase
       .from("members")
       .select("*")
+      .is("archived_at", null)
       .order("full_name", { ascending: true })
       .limit(500);
 
@@ -121,7 +122,7 @@ function MembersContent() {
   );
 
   const importProblemCount = importRows.length - validImportRows.length;
-  const canDeleteMembers = profile?.is_admin === true;
+  const canArchiveMembers = profile?.role === "lideranca";
   const canExportMembers = profile?.role === "lideranca";
   const selectedMembers = useMemo(
     () => members.filter((member) => selectedMemberIds.has(member.id)),
@@ -229,10 +230,10 @@ function MembersContent() {
   }
 
   async function handleDelete(member: Member) {
-    if (!canDeleteMembers) return;
+    if (!canArchiveMembers) return;
 
     const confirmed = window.confirm(
-      `Excluir o cadastro de ${member.full_name}? As presenças antigas continuarão no histórico como membro removido.`
+      `Arquivar o cadastro de ${member.full_name}? As presenças e acompanhamentos serão preservados.`
     );
 
     if (!confirmed) return;
@@ -240,12 +241,12 @@ function MembersContent() {
     setDeletingMemberId(member.id);
     setMessage("");
 
-    const { error } = await supabase.from("members").delete().eq("id", member.id);
+    const { error } = await supabase.from("members").update({ archived_at: new Date().toISOString() }).eq("id", member.id);
 
     setDeletingMemberId(null);
 
     if (error) {
-      setMessage("Não foi possível excluir o membro. Rode o SQL 11 no Supabase e tente novamente.");
+      setMessage("Não foi possível arquivar o membro. Execute o SQL 26 no Supabase.");
       return;
     }
 
@@ -253,15 +254,15 @@ function MembersContent() {
       resetForm();
     }
 
-    setMessage("Membro excluído com sucesso.");
+    setMessage("Membro arquivado com sucesso.");
     await loadMembers();
   }
 
   async function handleBulkDelete() {
-    if (!canDeleteMembers || selectedMembers.length === 0 || isBulkDeleting) return;
+    if (!canArchiveMembers || selectedMembers.length === 0 || isBulkDeleting) return;
 
     const confirmed = window.confirm(
-      `Excluir ${selectedMembers.length} membros selecionados? As presenças antigas continuarão no histórico como membros removidos.`
+      `Arquivar ${selectedMembers.length} membros selecionados? Os históricos serão preservados.`
     );
 
     if (!confirmed) return;
@@ -270,12 +271,12 @@ function MembersContent() {
     setMessage("");
 
     const selectedIds = selectedMembers.map((member) => member.id);
-    const { error } = await supabase.from("members").delete().in("id", selectedIds);
+    const { error } = await supabase.from("members").update({ archived_at: new Date().toISOString() }).in("id", selectedIds);
 
     setIsBulkDeleting(false);
 
     if (error) {
-      setMessage("Não foi possível excluir os membros. Rode o SQL 11 no Supabase e tente novamente.");
+      setMessage("Não foi possível arquivar os membros. Execute o SQL 26 no Supabase.");
       return;
     }
 
@@ -284,7 +285,7 @@ function MembersContent() {
     }
 
     setSelectedMemberIds(new Set());
-    setMessage(`${selectedMembers.length} membros excluídos com sucesso.`);
+    setMessage(`${selectedMembers.length} membros arquivados com sucesso.`);
     await loadMembers();
   }
 
@@ -643,7 +644,7 @@ function MembersContent() {
             <StatusBadge tone="neutral">{filteredMembers.length}</StatusBadge>
           </div>
 
-          {canDeleteMembers && filteredMembers.length > 0 ? (
+          {canArchiveMembers && filteredMembers.length > 0 ? (
             <div className="mb-4 rounded-card border border-line bg-paper p-3">
               <label className="flex items-center gap-3 text-sm font-medium text-ink">
                 <input
@@ -662,13 +663,13 @@ function MembersContent() {
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
                     <button
-                      className="danger-button min-h-10 px-3 py-2"
+                      className="secondary-button min-h-10 px-3 py-2"
                       disabled={isBulkDeleting}
                       onClick={handleBulkDelete}
                       type="button"
                     >
-                      <Trash2 aria-hidden="true" size={16} />
-                      {isBulkDeleting ? "Excluindo..." : "Excluir selecionados"}
+                      <Archive aria-hidden="true" size={16} />
+                      {isBulkDeleting ? "Arquivando..." : "Arquivar selecionados"}
                     </button>
                     <button
                       className="secondary-button min-h-10 px-3 py-2"
@@ -754,7 +755,7 @@ function MembersContent() {
                 <div className="border-b border-line pb-3 last:border-0 last:pb-0" key={member.id}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 gap-3">
-                      {canDeleteMembers ? (
+                      {canArchiveMembers ? (
                         <input
                           aria-label={`Selecionar ${member.full_name}`}
                           checked={selectedMemberIds.has(member.id)}
@@ -789,15 +790,15 @@ function MembersContent() {
                         <Edit3 aria-hidden="true" size={15} />
                         Editar
                       </button>
-                      {canDeleteMembers ? (
+                      {canArchiveMembers ? (
                         <button
-                          className="danger-button min-h-9 px-3 py-2"
+                          className="secondary-button min-h-9 px-3 py-2"
                           disabled={deletingMemberId === member.id}
                           onClick={() => handleDelete(member)}
                           type="button"
                         >
-                          <Trash2 aria-hidden="true" size={15} />
-                          {deletingMemberId === member.id ? "Excluindo..." : "Excluir"}
+                          <Archive aria-hidden="true" size={15} />
+                          {deletingMemberId === member.id ? "Arquivando..." : "Arquivar"}
                         </button>
                       ) : null}
                     </div>

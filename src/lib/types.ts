@@ -30,6 +30,8 @@ export type Member = {
   status: MemberStatus;
   notes: string | null;
   created_by: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -42,6 +44,8 @@ export type Visitor = {
   denomination: string | null;
   how_heard: string | null;
   created_by: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -75,6 +79,8 @@ export type Pastor = {
   district: string | null;
   speaker_role: SpeakerRole;
   created_by: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -86,6 +92,8 @@ export type SpecialMusic = {
   church: string | null;
   visit_date: string;
   created_by: string | null;
+  archived_at: string | null;
+  archived_by: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -187,6 +195,8 @@ export type Database = {
           status?: MemberStatus;
           notes?: string | null;
           created_by?: string | null;
+          archived_at?: string | null;
+          archived_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -203,6 +213,8 @@ export type Database = {
           denomination?: string | null;
           how_heard?: string | null;
           created_by?: string | null;
+          archived_at?: string | null;
+          archived_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -248,6 +260,8 @@ export type Database = {
           district?: string | null;
           speaker_role?: SpeakerRole;
           created_by?: string | null;
+          archived_at?: string | null;
+          archived_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -263,6 +277,8 @@ export type Database = {
           church?: string | null;
           visit_date?: string;
           created_by?: string | null;
+          archived_at?: string | null;
+          archived_by?: string | null;
           created_at?: string;
           updated_at?: string;
         };

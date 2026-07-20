@@ -70,6 +70,8 @@ create table if not exists public.members (
   status public.member_status not null default 'ativo',
   notes text,
   created_by uuid references auth.users(id) on delete set null,
+  archived_at timestamptz,
+  archived_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -82,6 +84,8 @@ create table if not exists public.visitors (
   denomination text,
   how_heard text,
   created_by uuid references auth.users(id) on delete set null,
+  archived_at timestamptz,
+  archived_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -115,6 +119,8 @@ create table if not exists public.pastors (
   district text,
   speaker_role text not null default 'pastor' check (speaker_role in ('pastor', 'pregador')),
   created_by uuid references auth.users(id) on delete set null,
+  archived_at timestamptz,
+  archived_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -126,6 +132,8 @@ create table if not exists public.special_music (
   church text,
   visit_date date not null default current_date,
   created_by uuid references auth.users(id) on delete set null,
+  archived_at timestamptz,
+  archived_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -207,10 +215,14 @@ create table if not exists public.followup_history (
 
 create index if not exists members_full_name_idx on public.members using gin (full_name gin_trgm_ops);
 create index if not exists members_status_idx on public.members (status);
+create index if not exists members_archived_at_idx on public.members (archived_at);
 create index if not exists visitors_full_name_idx on public.visitors using gin (full_name gin_trgm_ops);
+create index if not exists visitors_archived_at_idx on public.visitors (archived_at);
 create index if not exists pastors_full_name_idx on public.pastors using gin (full_name gin_trgm_ops);
+create index if not exists pastors_archived_at_idx on public.pastors (archived_at);
 create index if not exists special_music_performer_name_idx on public.special_music using gin (performer_name gin_trgm_ops);
 create index if not exists special_music_visit_date_idx on public.special_music (visit_date desc);
+create index if not exists special_music_archived_at_idx on public.special_music (archived_at);
 create index if not exists services_date_type_idx on public.services (service_date desc, service_type);
 create index if not exists attendances_service_idx on public.attendances (service_id);
 create index if not exists attendances_person_idx on public.attendances (person_type, person_id);
@@ -360,6 +372,51 @@ drop trigger if exists visitor_sensitive_data_set_updated_at on public.visitor_s
 create trigger visitor_sensitive_data_set_updated_at
 before update on public.visitor_sensitive_data
 for each row execute function public.set_updated_at();
+
+create or replace function public.protect_registry_archiving()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as '
+begin
+  if old.archived_at is not null and public.current_user_role() is distinct from ''lideranca'' then
+    raise exception ''Somente a liderança pode alterar cadastros arquivados.'';
+  end if;
+
+  if new.archived_at is distinct from old.archived_at then
+    if public.current_user_role() is distinct from ''lideranca'' then
+      raise exception ''Somente a liderança pode arquivar ou restaurar cadastros.'';
+    end if;
+
+    if new.archived_at is null then
+      new.archived_by := null;
+    else
+      new.archived_by := auth.uid();
+    end if;
+  elsif new.archived_by is distinct from old.archived_by then
+    raise exception ''O responsável pelo arquivamento é definido automaticamente.'';
+  end if;
+
+  return new;
+end;
+';
+
+drop trigger if exists members_protect_archiving on public.members;
+create trigger members_protect_archiving before update on public.members
+for each row execute function public.protect_registry_archiving();
+
+drop trigger if exists visitors_protect_archiving on public.visitors;
+create trigger visitors_protect_archiving before update on public.visitors
+for each row execute function public.protect_registry_archiving();
+
+drop trigger if exists pastors_protect_archiving on public.pastors;
+create trigger pastors_protect_archiving before update on public.pastors
+for each row execute function public.protect_registry_archiving();
+
+drop trigger if exists special_music_protect_archiving on public.special_music;
+create trigger special_music_protect_archiving before update on public.special_music
+for each row execute function public.protect_registry_archiving();
 
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as '
 declare
@@ -806,6 +863,7 @@ begin
   into v_matches
   from public.members
   where status = 'ativo'
+    and archived_at is null
     and (
       case
         when left(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), 2) = '55'
@@ -827,6 +885,7 @@ begin
   into v_member
   from public.members
   where status = 'ativo'
+    and archived_at is null
     and (
       case
         when left(regexp_replace(coalesce(phone, ''), '\D', '', 'g'), 2) = '55'

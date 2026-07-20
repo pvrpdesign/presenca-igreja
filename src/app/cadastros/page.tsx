@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
+  Archive,
   Edit3,
   FileText,
   FileDown,
   FileSpreadsheet,
   Save,
   Search,
+  RotateCcw,
   Trash2,
   Upload,
   UserPlus,
@@ -39,6 +41,7 @@ import type {
 } from "@/lib/types";
 
 type RegistryKind = "membro" | "visitante" | "pastor" | "musica";
+type RegistryView = "ativos" | "arquivados";
 
 type RegistryItem = {
   id: string;
@@ -120,6 +123,7 @@ function UnifiedRegistryContent() {
   const [pastors, setPastors] = useState<Pastor[]>([]);
   const [specialMusic, setSpecialMusic] = useState<SpecialMusic[]>([]);
   const [kindFilter, setKindFilter] = useState<RegistryKind | "todos">("todos");
+  const [registryView, setRegistryView] = useState<RegistryView>("ativos");
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -133,6 +137,7 @@ function UnifiedRegistryContent() {
   const [isImporting, setIsImporting] = useState(false);
 
   const canDelete = profile?.is_admin === true;
+  const canArchive = profile?.role === "lideranca";
   const canExport = profile?.role === "lideranca";
 
   const loadRegistries = useCallback(async () => {
@@ -232,14 +237,17 @@ function UnifiedRegistryContent() {
 
     return registryItems.filter((item) => {
       const matchesKind = kindFilter === "todos" || item.kind === kindFilter;
+      const matchesView = registryView === "arquivados"
+        ? Boolean(item.raw.archived_at)
+        : !item.raw.archived_at;
       const matchesSearch =
         !normalizedSearch ||
         [item.title, item.contact, item.detail, registryLabel(item.kind)]
           .some((value) => normalizeFilter(value).includes(normalizedSearch));
 
-      return matchesKind && matchesSearch;
+      return matchesKind && matchesView && matchesSearch;
     });
-  }, [kindFilter, registryItems, search]);
+  }, [kindFilter, registryItems, registryView, search]);
 
   const validImportRows = useMemo(
     () => importRows.filter((row) => row.errors.length === 0 && !row.isDuplicate),
@@ -522,62 +530,48 @@ function UnifiedRegistryContent() {
     await loadRegistries();
   }
 
-  async function handleDelete(item: RegistryItem) {
-    if (!canDelete) return;
+  async function updateArchiveState(kind: RegistryKind, ids: string[], archived: boolean) {
+    const payload = { archived_at: archived ? new Date().toISOString() : null };
 
-    const confirmed = window.confirm(`Excluir ${item.title}?`);
+    if (kind === "membro") return supabase.from("members").update(payload).in("id", ids);
+    if (kind === "visitante") return supabase.from("visitors").update(payload).in("id", ids);
+    if (kind === "pastor") return supabase.from("pastors").update(payload).in("id", ids);
+    return supabase.from("special_music").update(payload).in("id", ids);
+  }
+
+  async function handleArchive(item: RegistryItem, archived: boolean) {
+    if (!canArchive) return;
+
+    const confirmed = window.confirm(
+      archived
+        ? `Arquivar ${item.title}? O histórico será preservado.`
+        : `Restaurar ${item.title} para as listas ativas?`
+    );
     if (!confirmed) return;
 
     setDeletingKey(`${item.kind}:${item.id}`);
     setMessage("");
-
-    let hasError = false;
-
-    if (item.kind === "membro") {
-      const { error } = await supabase.from("members").delete().eq("id", item.id);
-      hasError = Boolean(error);
-    }
-
-    if (item.kind === "visitante") {
-      const { error: attendanceError } = await supabase
-        .from("attendances")
-        .delete()
-        .eq("person_type", "visitante")
-        .eq("person_id", item.id);
-      const { error } = attendanceError
-        ? { error: attendanceError }
-        : await supabase.from("visitors").delete().eq("id", item.id);
-      hasError = Boolean(error);
-    }
-
-    if (item.kind === "pastor") {
-      const { error } = await supabase.from("pastors").delete().eq("id", item.id);
-      hasError = Boolean(error);
-    }
-
-    if (item.kind === "musica") {
-      const { error } = await supabase.from("special_music").delete().eq("id", item.id);
-      hasError = Boolean(error);
-    }
-
+    const { error } = await updateArchiveState(item.kind, [item.id], archived);
     setDeletingKey(null);
 
-    if (hasError) {
-      setMessage("Não foi possível excluir. Confira as permissões ou rode o SQL necessário no Supabase.");
+    if (error) {
+      setMessage("Não foi possível alterar o arquivamento. Execute o SQL 26 no Supabase.");
       return;
     }
 
-    setMessage("Cadastro excluído com sucesso.");
+    if (editing?.id === item.id && editing.kind === item.kind) resetForm();
+    setMessage(archived ? "Cadastro arquivado com sucesso." : "Cadastro restaurado com sucesso.");
     await loadRegistries();
   }
 
-  async function handleBulkDelete() {
-    if (!canDelete || selectedItems.length === 0 || isBulkDeleting) return;
+  async function handleBulkArchive(archived: boolean) {
+    if (!canArchive || selectedItems.length === 0 || isBulkDeleting) return;
 
     const confirmed = window.confirm(
-      `Excluir ${selectedItems.length} cadastros selecionados? Esta ação não pode ser desfeita.`
+      archived
+        ? `Arquivar ${selectedItems.length} cadastros selecionados? Os históricos serão preservados.`
+        : `Restaurar ${selectedItems.length} cadastros selecionados?`
     );
-
     if (!confirmed) return;
 
     setIsBulkDeleting(true);
@@ -595,41 +589,16 @@ function UnifiedRegistryContent() {
     });
 
     let hasError = false;
-
-    if (selectedByKind.membro.length > 0) {
-      const { error } = await supabase.from("members").delete().in("id", selectedByKind.membro);
-      hasError = Boolean(error);
-    }
-
-    if (!hasError && selectedByKind.visitante.length > 0) {
-      const { error: attendanceError } = await supabase
-        .from("attendances")
-        .delete()
-        .eq("person_type", "visitante")
-        .in("person_id", selectedByKind.visitante);
-
-      if (attendanceError) {
-        hasError = true;
-      } else {
-        const { error } = await supabase.from("visitors").delete().in("id", selectedByKind.visitante);
-        hasError = Boolean(error);
-      }
-    }
-
-    if (!hasError && selectedByKind.pastor.length > 0) {
-      const { error } = await supabase.from("pastors").delete().in("id", selectedByKind.pastor);
-      hasError = Boolean(error);
-    }
-
-    if (!hasError && selectedByKind.musica.length > 0) {
-      const { error } = await supabase.from("special_music").delete().in("id", selectedByKind.musica);
-      hasError = Boolean(error);
+    for (const kind of Object.keys(selectedByKind) as RegistryKind[]) {
+      if (selectedByKind[kind].length === 0) continue;
+      const { error } = await updateArchiveState(kind, selectedByKind[kind], archived);
+      if (error) { hasError = true; break; }
     }
 
     setIsBulkDeleting(false);
 
     if (hasError) {
-      setMessage("Não foi possível excluir todos os selecionados. Confira as permissões no Supabase.");
+      setMessage("Não foi possível alterar todos os selecionados. Execute o SQL 26 no Supabase.");
       await loadRegistries();
       return;
     }
@@ -639,7 +608,57 @@ function UnifiedRegistryContent() {
     }
 
     setSelectedKeys(new Set());
-    setMessage(`${selectedItems.length} cadastros excluídos com sucesso.`);
+    setMessage(`${selectedItems.length} cadastros ${archived ? "arquivados" : "restaurados"} com sucesso.`);
+    await loadRegistries();
+  }
+
+  async function handleDelete(item: RegistryItem) {
+    if (!canDelete || !item.raw.archived_at) return;
+    const confirmation = window.prompt(
+      `Exclusão definitiva de ${item.title}. Esta ação não pode ser desfeita. Digite EXCLUIR para confirmar.`
+    );
+    if (confirmation !== "EXCLUIR") return;
+
+    setDeletingKey(`${item.kind}:${item.id}`);
+    const response = item.kind === "membro"
+      ? await supabase.from("members").delete().eq("id", item.id)
+      : item.kind === "visitante"
+        ? await supabase.from("visitors").delete().eq("id", item.id)
+        : item.kind === "pastor"
+          ? await supabase.from("pastors").delete().eq("id", item.id)
+          : await supabase.from("special_music").delete().eq("id", item.id);
+    setDeletingKey(null);
+    setMessage(response.error ? "Não foi possível excluir definitivamente." : "Cadastro excluído definitivamente.");
+    if (!response.error) await loadRegistries();
+  }
+
+  async function handleBulkDelete() {
+    if (!canDelete || selectedItems.length === 0 || isBulkDeleting) return;
+    if (selectedItems.some((item) => !item.raw.archived_at)) return;
+    const confirmation = window.prompt(
+      `Exclusão definitiva de ${selectedItems.length} cadastros. Digite EXCLUIR para confirmar.`
+    );
+    if (confirmation !== "EXCLUIR") return;
+
+    setIsBulkDeleting(true);
+    for (const item of selectedItems) {
+      const response = item.kind === "membro"
+        ? await supabase.from("members").delete().eq("id", item.id)
+        : item.kind === "visitante"
+          ? await supabase.from("visitors").delete().eq("id", item.id)
+          : item.kind === "pastor"
+            ? await supabase.from("pastors").delete().eq("id", item.id)
+            : await supabase.from("special_music").delete().eq("id", item.id);
+      if (response.error) {
+        setMessage("A exclusão definitiva foi interrompida porque ocorreu um erro.");
+        setIsBulkDeleting(false);
+        await loadRegistries();
+        return;
+      }
+    }
+    setSelectedKeys(new Set());
+    setIsBulkDeleting(false);
+    setMessage("Cadastros excluídos definitivamente.");
     await loadRegistries();
   }
 
@@ -1136,12 +1155,31 @@ function UnifiedRegistryContent() {
               <h2 className="text-base font-semibold text-ink">Lista de cadastros</h2>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
-              {canDelete && selectedItems.length > 0 ? (
+              {canArchive && selectedItems.length > 0 ? (
                 <StatusBadge tone="warning">{selectedItems.length} selecionados</StatusBadge>
               ) : null}
               <StatusBadge tone="neutral">{filteredItems.length}</StatusBadge>
             </div>
           </div>
+
+          {canArchive ? (
+            <div className="mb-4 grid grid-cols-2 gap-2 rounded-card border border-line bg-paper p-2">
+              <button
+                className={registryView === "ativos" ? "primary-button" : "secondary-button"}
+                onClick={() => { setRegistryView("ativos"); setSelectedKeys(new Set()); }}
+                type="button"
+              >
+                Cadastros ativos
+              </button>
+              <button
+                className={registryView === "arquivados" ? "primary-button" : "secondary-button"}
+                onClick={() => { setRegistryView("arquivados"); setSelectedKeys(new Set()); }}
+                type="button"
+              >
+                <Archive aria-hidden="true" size={16} /> Arquivados
+              </button>
+            </div>
+          ) : null}
 
           <div className="mb-4 grid gap-3">
             <label className="relative">
@@ -1186,9 +1224,9 @@ function UnifiedRegistryContent() {
             </button>
           </div>
 
-          {canDelete ? (
+          {canArchive ? (
             <div className="mb-4 rounded-card border border-line bg-paper p-3">
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className={`grid gap-2 ${registryView === "arquivados" && canDelete ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
                 <button
                   className="secondary-button min-h-10 px-3 py-2"
                   disabled={filteredItems.length === 0 || isBulkDeleting}
@@ -1198,14 +1236,19 @@ function UnifiedRegistryContent() {
                   {allFilteredSelected ? "Desmarcar filtro" : "Selecionar filtro"}
                 </button>
                 <button
-                  className="danger-button min-h-10 px-3 py-2"
+                  className="secondary-button min-h-10 px-3 py-2"
                   disabled={selectedItems.length === 0 || isBulkDeleting}
-                  onClick={handleBulkDelete}
+                  onClick={() => handleBulkArchive(registryView === "ativos")}
                   type="button"
                 >
-                  <Trash2 aria-hidden="true" size={16} />
-                  {isBulkDeleting ? "Excluindo..." : "Excluir selecionados"}
+                  {registryView === "ativos" ? <Archive aria-hidden="true" size={16} /> : <RotateCcw aria-hidden="true" size={16} />}
+                  {isBulkDeleting ? "Processando..." : registryView === "ativos" ? "Arquivar selecionados" : "Restaurar selecionados"}
                 </button>
+                {registryView === "arquivados" && canDelete ? (
+                  <button className="danger-button min-h-10 px-3 py-2" disabled={selectedItems.length === 0 || isBulkDeleting} onClick={handleBulkDelete} type="button">
+                    <Trash2 aria-hidden="true" size={16} /> Excluir definitivamente
+                  </button>
+                ) : null}
               </div>
               <p className="mt-2 text-xs leading-5 text-muted">
                 A seleção usa a lista filtrada. Filtre por tipo ou nome antes de selecionar.
@@ -1221,7 +1264,7 @@ function UnifiedRegistryContent() {
                 <div className="border-b border-line pb-3 last:border-0 last:pb-0" key={registryItemKey(item)}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex min-w-0 items-start gap-3">
-                      {canDelete ? (
+                      {canArchive ? (
                         <input
                           aria-label={`Selecionar ${item.title}`}
                           checked={selectedKeys.has(registryItemKey(item))}
@@ -1249,15 +1292,23 @@ function UnifiedRegistryContent() {
                           Ver ficha
                         </Link>
                       ) : null}
-                      <button
-                        className="secondary-button min-h-9 px-3 py-2"
-                        onClick={() => startEdit(item)}
-                        type="button"
-                      >
-                        <Edit3 aria-hidden="true" size={15} />
-                        Editar
-                      </button>
-                      {canDelete ? (
+                      {registryView === "ativos" ? (
+                        <button className="secondary-button min-h-9 px-3 py-2" onClick={() => startEdit(item)} type="button">
+                          <Edit3 aria-hidden="true" size={15} /> Editar
+                        </button>
+                      ) : null}
+                      {canArchive ? (
+                        <button
+                          className="secondary-button min-h-9 px-3 py-2"
+                          disabled={deletingKey === `${item.kind}:${item.id}`}
+                          onClick={() => handleArchive(item, registryView === "ativos")}
+                          type="button"
+                        >
+                          {registryView === "ativos" ? <Archive aria-hidden="true" size={15} /> : <RotateCcw aria-hidden="true" size={15} />}
+                          {deletingKey === `${item.kind}:${item.id}` ? "Processando..." : registryView === "ativos" ? "Arquivar" : "Restaurar"}
+                        </button>
+                      ) : null}
+                      {canDelete && registryView === "arquivados" ? (
                         <button
                           className="danger-button min-h-9 px-3 py-2"
                           disabled={deletingKey === `${item.kind}:${item.id}`}
@@ -1265,7 +1316,7 @@ function UnifiedRegistryContent() {
                           type="button"
                         >
                           <Trash2 aria-hidden="true" size={15} />
-                          {deletingKey === `${item.kind}:${item.id}` ? "Excluindo..." : "Excluir"}
+                          {deletingKey === `${item.kind}:${item.id}` ? "Excluindo..." : "Excluir definitivamente"}
                         </button>
                       ) : null}
                     </div>

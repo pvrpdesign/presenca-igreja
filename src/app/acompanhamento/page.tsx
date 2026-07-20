@@ -492,11 +492,13 @@ function FollowUpContent() {
       .from("members")
       .select("id, full_name, phone, neighborhood, ministry")
       .eq("status", "ativo")
+      .is("archived_at", null)
       .order("full_name", { ascending: true });
 
     const { data: visitorsData, error: visitorsError } = await supabase
       .from("visitors")
       .select("id, full_name, phone, location")
+      .is("archived_at", null)
       .order("full_name", { ascending: true });
 
     if (membersError || visitorsError) {

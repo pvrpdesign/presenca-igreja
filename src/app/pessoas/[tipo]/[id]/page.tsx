@@ -215,6 +215,15 @@ function PersonProfileContent() {
       />
 
       {errorMessage ? <div className="mb-5"><Notice title={errorMessage} tone="warning" /></div> : null}
+      {person.archived_at ? (
+        <div className="mb-5">
+          <Notice
+            title="Cadastro arquivado"
+            text={`Arquivado em ${formatActionDate(person.archived_at)}. O histórico permanece disponível e o cadastro pode ser restaurado em Cadastros → Arquivados.`}
+            tone="warning"
+          />
+        </div>
+      ) : null}
 
       <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard icon={CalendarDays} label="Total de presenças" value={stats.total} />

@@ -25,7 +25,7 @@ import {
   todayInputValue
 } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
-import type { Attendance, Member, Service, ServiceType } from "@/lib/types";
+import type { Attendance, Member, Service, ServiceType, Visitor } from "@/lib/types";
 
 type Summary = {
   total: number;
@@ -166,7 +166,8 @@ function DashboardContent() {
     const { data: membersData, error: membersError } = await supabase
       .from("members")
       .select("id")
-      .eq("status", "ativo");
+      .eq("status", "ativo")
+      .is("archived_at", null);
 
     if (membersError) {
       setAbsenceAlert(emptyAbsenceAlert);
@@ -224,10 +225,16 @@ function DashboardContent() {
       )
     ];
 
+    const { data: activeVisitorsData } = visitorIdsWithSaturdayHistory.length > 0
+      ? await supabase.from("visitors").select("id").in("id", visitorIdsWithSaturdayHistory).is("archived_at", null)
+      : { data: [] };
+    const activeVisitorIds = new Set(((activeVisitorsData ?? []) as Pick<Visitor, "id">[]).map((visitor) => visitor.id));
+
     const missedTwoVisitorIds =
       visitorServices.length < 4
         ? []
         : visitorIdsWithSaturdayHistory.filter((visitorId) =>
+            activeVisitorIds.has(visitorId) &&
             visitorServices.every(
               (service) => !presentByService.get(`visitante:${service.id}`)?.has(visitorId)
             )

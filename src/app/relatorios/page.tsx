@@ -505,6 +505,7 @@ function ReportsContent() {
       .from("members")
       .select("id, full_name, phone, neighborhood, ministry")
       .eq("status", "ativo")
+      .is("archived_at", null)
       .order("full_name", { ascending: true });
 
     const activeMembers = (membersData ?? []) as ReportMember[];
