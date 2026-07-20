@@ -607,37 +607,44 @@ function ServicesContent() {
 
                 return (
                   <article
-                    className="rounded-card border border-line bg-paper p-3 sm:p-4"
+                    className="overflow-hidden rounded-card border border-line bg-paper shadow-sm"
                     key={service.id}
                   >
-                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-                      <div className="min-w-0">
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
-                          <CalendarCheck aria-hidden="true" className="text-forest" size={18} />
-                          <h3 className="font-semibold text-ink">{serviceDisplayTitle(service)}</h3>
-                          <StatusBadge tone="success">
-                            {SERVICE_LABELS[service.service_type]}
-                          </StatusBadge>
+                    <div className="p-4 sm:p-5">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-card bg-forest/10 text-forest">
+                            <CalendarCheck aria-hidden="true" size={20} />
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="text-base font-semibold text-ink sm:text-lg">{serviceDisplayTitle(service)}</h3>
+                            <p className="mt-1 text-sm text-muted">{formatDateBR(service.service_date)}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 sm:justify-end">
+                          <StatusBadge tone="neutral">{SERVICE_LABELS[service.service_type]}</StatusBadge>
                           <StatusBadge tone={service.closed_at ? "warning" : "success"}>
                             {service.closed_at ? "Encerrado" : "Aberto"}
                           </StatusBadge>
                         </div>
-                        <p className="text-sm text-muted">{formatDateBR(service.service_date)}</p>
-                        {service.closed_at ? (
-                          <p className="mt-1 text-xs text-muted">
-                            Encerrado por {service.closed_by ? closedByNames[service.closed_by] ?? "Liderança" : "Liderança"} em {new Date(service.closed_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Bahia" })}.
-                          </p>
-                        ) : null}
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <StatusBadge tone="neutral">{stats.total} presenças</StatusBadge>
-                          <StatusBadge tone="neutral">{stats.members} membros</StatusBadge>
-                          <StatusBadge tone="neutral">{stats.visitors} visitantes</StatusBadge>
-                          <StatusBadge tone="neutral">{stats.pastors} pastores</StatusBadge>
-                          <StatusBadge tone="neutral">{stats.music} músicas</StatusBadge>
-                        </div>
                       </div>
 
-                      <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[520px] xl:grid-cols-5">
+                      {service.closed_at ? (
+                        <p className="mt-3 rounded-xl border border-gold/30 bg-gold/10 px-3 py-2 text-xs leading-5 text-muted">
+                          Encerrado por {service.closed_by ? closedByNames[service.closed_by] ?? "Liderança" : "Liderança"} em {new Date(service.closed_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Bahia" })}.
+                        </p>
+                      ) : null}
+
+                      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                        <ServiceStat label="Presenças" value={stats.total} />
+                        <ServiceStat label="Membros" value={stats.members} />
+                        <ServiceStat label="Visitantes" value={stats.visitors} />
+                        <ServiceStat label="Pastores" value={stats.pastors} />
+                        <ServiceStat label="Músicas" value={stats.music} />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 border-t border-line bg-white p-3 sm:grid-cols-3 sm:p-4 2xl:grid-cols-5">
                         <Link className="primary-button min-h-10 px-3 py-2" href={presenceHref}>
                           {service.closed_at ? "Consultar" : "Presença"}
                         </Link>
@@ -695,7 +702,6 @@ function ServicesContent() {
                             {deletingServiceId === service.id ? "Excluindo..." : "Excluir"}
                           </button>
                         ) : null}
-                      </div>
                     </div>
                   </article>
                 );
@@ -782,6 +788,15 @@ function ServicesContent() {
           </section>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function ServiceStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-line bg-white px-3 py-2.5 text-center">
+      <p className="text-lg font-semibold text-ink">{value}</p>
+      <p className="mt-0.5 text-xs text-muted">{label}</p>
     </div>
   );
 }
