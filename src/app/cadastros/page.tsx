@@ -1243,7 +1243,7 @@ function UnifiedRegistryContent() {
                       </div>
                     </div>
                     <div className="flex shrink-0 flex-col gap-2">
-                      {profile?.role === "lideranca" && (item.kind === "membro" || item.kind === "visitante") ? (
+                      {profile?.role === "lideranca" ? (
                         <Link className="secondary-button min-h-9 px-3 py-2" href={`/pessoas/${item.kind}/${item.id}`}>
                           <FileText aria-hidden="true" size={15} />
                           Ver ficha

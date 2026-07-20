@@ -1081,11 +1081,9 @@ function FollowUpContent() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        {guest.kind === "visitante" ? (
-                          <Link className="font-semibold text-ink hover:text-wine hover:underline" href={`/pessoas/visitante/${guest.personId}`}>
+                        <Link className="font-semibold text-ink hover:text-wine hover:underline" href={`/pessoas/${guest.kind}/${guest.personId}`}>
                             {guest.fullName}
-                          </Link>
-                        ) : <p className="font-semibold text-ink">{guest.fullName}</p>}
+                        </Link>
                         <StatusBadge tone={isAccompanied ? "success" : "warning"}>
                           {isAccompanied ? (isThankYou ? "Agradecimento feito" : "Acompanhado") : "Pendente"}
                         </StatusBadge>

@@ -20,12 +20,15 @@ import type {
   FollowUpActionType,
   FollowUpHistory,
   Member,
+  Pastor,
+  PersonType,
   Service,
+  SpecialMusic,
   Visitor,
   VisitorSensitiveData
 } from "@/lib/types";
 
-type PersonRecord = Member | Visitor;
+type PersonRecord = Member | Visitor | Pastor | SpecialMusic;
 type AttendanceRow = Pick<Attendance, "id" | "service_id" | "service_date" | "service_type">;
 type SaturdayService = Pick<Service, "id" | "service_date">;
 
@@ -46,10 +49,11 @@ function formatActionDate(value: string) {
   });
 }
 
-function whatsappUrl(phone: string | null) {
+function whatsappUrl(phone: string | null, message?: string) {
   const digits = phone?.replace(/\D/g, "");
   if (!digits) return null;
-  return `https://wa.me/${digits.startsWith("55") ? digits : `55${digits}`}`;
+  const baseUrl = `https://wa.me/${digits.startsWith("55") ? digits : `55${digits}`}`;
+  return message ? `${baseUrl}?text=${encodeURIComponent(message)}` : baseUrl;
 }
 
 export default function PersonProfilePage() {
@@ -62,7 +66,9 @@ export default function PersonProfilePage() {
 
 function PersonProfileContent() {
   const params = useParams<{ tipo: string; id: string }>();
-  const kind = params.tipo === "membro" || params.tipo === "visitante" ? params.tipo : null;
+  const kind: PersonType | null = ["membro", "visitante", "pastor", "musica"].includes(params.tipo)
+    ? params.tipo as PersonType
+    : null;
   const [person, setPerson] = useState<PersonRecord | null>(null);
   const [attendances, setAttendances] = useState<AttendanceRow[]>([]);
   const [history, setHistory] = useState<FollowUpHistory[]>([]);
@@ -83,7 +89,11 @@ function PersonProfileContent() {
 
     const personRequest = kind === "membro"
       ? supabase.from("members").select("*").eq("id", params.id).maybeSingle()
-      : supabase.from("visitors").select("*").eq("id", params.id).maybeSingle();
+      : kind === "visitante"
+        ? supabase.from("visitors").select("*").eq("id", params.id).maybeSingle()
+        : kind === "pastor"
+          ? supabase.from("pastors").select("*").eq("id", params.id).maybeSingle()
+          : supabase.from("special_music").select("*").eq("id", params.id).maybeSingle();
 
     const [personResponse, attendanceResponse, historyResponse, servicesResponse, sensitiveResponse] = await Promise.all([
       personRequest,
@@ -161,9 +171,29 @@ function PersonProfileContent() {
 
   const isMember = kind === "membro";
   const member = isMember ? person as Member : null;
-  const visitor = !isMember ? person as Visitor : null;
-  const phone = person.phone;
-  const messageUrl = whatsappUrl(phone);
+  const visitor = kind === "visitante" ? person as Visitor : null;
+  const pastor = kind === "pastor" ? person as Pastor : null;
+  const music = kind === "musica" ? person as SpecialMusic : null;
+  const isGuest = Boolean(pastor || music);
+  const displayName = music?.performer_name ?? (person as Member | Visitor | Pastor).full_name;
+  const phone = music?.contact ?? (person as Member | Visitor | Pastor).phone;
+  const firstName = displayName.trim().split(/\s+/)[0] || displayName;
+  const messageUrl = whatsappUrl(
+    phone,
+    isGuest
+      ? `Olá, ${firstName}! Foi uma alegria receber você na IASD Calçada. Gostaríamos de conversar sobre uma nova participação em nossa igreja.`
+      : undefined
+  );
+  const kindLabel = member
+    ? "Membro"
+    : visitor
+      ? "Visitante"
+      : pastor?.speaker_role === "pregador"
+        ? "Pregador"
+        : pastor
+          ? "Pastor"
+          : "Música Especial";
+  const lastAttendance = attendances[0] ?? null;
 
   return (
     <div>
@@ -172,7 +202,7 @@ function PersonProfileContent() {
           <div className="flex flex-wrap gap-2">
             {messageUrl ? (
               <a className="primary-button" href={messageUrl} rel="noreferrer" target="_blank">
-                <MessageCircle aria-hidden="true" size={17} /> WhatsApp
+                <MessageCircle aria-hidden="true" size={17} /> {isGuest ? "Convidar pelo WhatsApp" : "WhatsApp"}
               </a>
             ) : null}
             <Link className="secondary-button" href="/cadastros">
@@ -180,8 +210,8 @@ function PersonProfileContent() {
             </Link>
           </div>
         }
-        eyebrow={isMember ? "Ficha do membro" : "Ficha do visitante"}
-        title={person.full_name}
+        eyebrow={`Ficha de ${kindLabel.toLowerCase()}`}
+        title={displayName}
       />
 
       {errorMessage ? <div className="mb-5"><Notice title={errorMessage} tone="warning" /></div> : null}
@@ -189,8 +219,13 @@ function PersonProfileContent() {
       <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard icon={CalendarDays} label="Total de presenças" value={stats.total} />
         <MetricCard icon={ShieldCheck} label="Sábados presentes" value={stats.saturdays} />
-        <MetricCard icon={HistoryIcon} label="Contatos registrados" tone="wine" value={stats.contacts} />
-        <MetricCard icon={UserRound} label="Sábados sem aparecer" tone="gold" value={stats.absenceStreak} />
+        <MetricCard icon={HistoryIcon} label={isGuest ? "Agradecimentos/contatos" : "Contatos registrados"} tone="wine" value={stats.contacts} />
+        <MetricCard
+          icon={UserRound}
+          label={isGuest ? "Última participação" : "Sábados sem aparecer"}
+          tone="gold"
+          value={isGuest ? (lastAttendance ? formatDateBR(lastAttendance.service_date) : "Nenhuma") : stats.absenceStreak}
+        />
       </section>
 
       <div className="mb-5 grid gap-5 lg:grid-cols-2">
@@ -198,19 +233,27 @@ function PersonProfileContent() {
           <h2 className="text-lg font-semibold text-ink">Dados cadastrais</h2>
           <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
             <div><dt className="font-semibold text-ink">Telefone/WhatsApp</dt><dd className="mt-1 text-muted">{phone || "Não informado"}</dd></div>
-            <div><dt className="font-semibold text-ink">Tipo</dt><dd className="mt-1 text-muted">{isMember ? "Membro" : "Visitante"}</dd></div>
+            <div><dt className="font-semibold text-ink">Tipo</dt><dd className="mt-1 text-muted">{kindLabel}</dd></div>
             {member ? <><div><dt className="font-semibold text-ink">Bairro</dt><dd className="mt-1 text-muted">{member.neighborhood || "Não informado"}</dd></div><div><dt className="font-semibold text-ink">Ministério</dt><dd className="mt-1 text-muted">{member.ministry || "Não informado"}</dd></div><div><dt className="font-semibold text-ink">Situação</dt><dd className="mt-1"><StatusBadge tone={member.status === "ativo" ? "success" : "warning"}>{member.status}</StatusBadge></dd></div></> : null}
             {visitor ? <><div><dt className="font-semibold text-ink">Cidade/Bairro</dt><dd className="mt-1 text-muted">{visitor.location || "Não informado"}</dd></div><div><dt className="font-semibold text-ink">Denominação</dt><dd className="mt-1 text-muted">{visitor.denomination || "Não informada"}</dd></div><div><dt className="font-semibold text-ink">Como conheceu</dt><dd className="mt-1 text-muted">{visitor.how_heard || "Não informado"}</dd></div></> : null}
+            {pastor ? <><div><dt className="font-semibold text-ink">Distrito/Região</dt><dd className="mt-1 text-muted">{pastor.district || "Não informado"}</dd></div><div><dt className="font-semibold text-ink">Participação</dt><dd className="mt-1 text-muted">{pastor.speaker_role === "pregador" ? "Pregador" : "Pastor"}</dd></div></> : null}
+            {music ? <><div><dt className="font-semibold text-ink">Igreja/Grupo</dt><dd className="mt-1 text-muted">{music.church || "Não informado"}</dd></div><div><dt className="font-semibold text-ink">Data informada no cadastro</dt><dd className="mt-1 text-muted">{formatDateBR(music.visit_date)}</dd></div></> : null}
           </dl>
           {member?.notes ? <div className="mt-4 rounded-xl border border-line bg-paper p-3 text-sm"><p className="font-semibold text-ink">Observações</p><p className="mt-1 whitespace-pre-wrap text-muted">{member.notes}</p></div> : null}
         </section>
 
         <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
-          <h2 className="text-lg font-semibold text-ink">Dados pastorais restritos</h2>
+          <h2 className="text-lg font-semibold text-ink">{isGuest ? "Informações para um novo convite" : "Dados pastorais restritos"}</h2>
           {visitor ? (
             <div className="mt-4 space-y-4 text-sm">
               <div><p className="font-semibold text-ink">Pedido de oração</p><p className="mt-1 whitespace-pre-wrap text-muted">{sensitiveData?.prayer_request || "Nenhum pedido registrado."}</p></div>
               <div><p className="font-semibold text-ink">Observações da liderança</p><p className="mt-1 whitespace-pre-wrap text-muted">{sensitiveData?.notes || "Nenhuma observação registrada."}</p></div>
+            </div>
+          ) : isGuest ? (
+            <div className="mt-4 space-y-4 text-sm">
+              <div><p className="font-semibold text-ink">Última participação</p><p className="mt-1 text-muted">{lastAttendance ? `${SERVICE_LABELS[lastAttendance.service_type]} em ${formatDateBR(lastAttendance.service_date)}` : "Nenhuma participação registrada."}</p></div>
+              <div><p className="font-semibold text-ink">Contato</p><p className="mt-1 text-muted">{phone || "Não informado"}</p></div>
+              <p className="rounded-xl border border-line bg-paper p-3 text-muted">Consulte abaixo todas as participações e agradecimentos antes de fazer um novo convite.</p>
             </div>
           ) : (
             <p className="mt-4 text-sm text-muted">As observações do membro aparecem nos dados cadastrais.</p>
@@ -226,7 +269,7 @@ function PersonProfileContent() {
               {attendances.map((attendance) => (
                 <div className="flex items-center justify-between gap-3 border-b border-line pb-3 last:border-0" key={attendance.id}>
                   <div><p className="font-medium text-ink">{SERVICE_LABELS[attendance.service_type]}</p><p className="text-sm text-muted">{formatDateBR(attendance.service_date)}</p></div>
-                  <StatusBadge tone="success">Presente</StatusBadge>
+                  <StatusBadge tone="success">{isGuest ? "Participou" : "Presente"}</StatusBadge>
                 </div>
               ))}
             </div>
@@ -234,7 +277,7 @@ function PersonProfileContent() {
         </section>
 
         <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
-          <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold text-ink">Histórico de acompanhamentos</h2><StatusBadge>{history.length}</StatusBadge></div>
+          <div className="mb-4 flex items-center justify-between gap-3"><h2 className="text-lg font-semibold text-ink">{isGuest ? "Histórico de agradecimentos e contatos" : "Histórico de acompanhamentos"}</h2><StatusBadge>{history.length}</StatusBadge></div>
           {history.length === 0 ? <p className="text-sm text-muted">Nenhum contato registrado.</p> : (
             <div className="max-h-[520px] space-y-4 overflow-y-auto pr-1">
               {history.map((entry) => (
