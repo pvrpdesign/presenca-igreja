@@ -18,9 +18,10 @@ import {
   X
 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
+import { PhoneInput } from "@/components/PhoneInput";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
-import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
+import { findPotentialDuplicate, isValidBrazilPhone, normalizeBrazilPhone } from "@/lib/duplicates";
 import { formatDateBR, todayInputValue } from "@/lib/date";
 import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
 import { authorizeDataExport } from "@/lib/exportAudit";
@@ -378,19 +379,20 @@ function UnifiedRegistryContent() {
 
     return pastors.some((pastor) => {
       if (editing?.kind === "pastor" && editing.id === pastor.id) return false;
-      return normalizeFilter(pastor.full_name) === name || Boolean(phone && pastor.phone === phone);
+      return normalizeFilter(pastor.full_name) === name
+        || Boolean(phone && normalizeBrazilPhone(pastor.phone) === phone);
     });
   }
 
   function hasDuplicateMusic(payload: { performer_name: string; contact: string | null; visit_date: string }) {
     const name = normalizeFilter(payload.performer_name);
-    const contact = normalizeFilter(payload.contact);
+    const contact = normalizeBrazilPhone(payload.contact);
 
     return specialMusic.some((music) => {
       if (editing?.kind === "musica" && editing.id === music.id) return false;
       return (
         normalizeFilter(music.performer_name) === name &&
-        normalizeFilter(music.contact) === contact &&
+        normalizeBrazilPhone(music.contact) === contact &&
         music.visit_date === payload.visit_date
       );
     });
@@ -402,6 +404,13 @@ function UnifiedRegistryContent() {
     setMessage("");
 
     let errorMessage = "";
+    const phoneValue = form.kind === "musica" ? form.contact : form.phone;
+
+    if (!isValidBrazilPhone(phoneValue)) {
+      setMessage("Informe um telefone válido com DDD, por exemplo: (71) 99999-9999.");
+      setIsSubmitting(false);
+      return;
+    }
 
     if (form.kind === "membro") {
       const payload = {
@@ -498,7 +507,7 @@ function UnifiedRegistryContent() {
     if (form.kind === "musica") {
       const payload = {
         performer_name: form.performer_name.trim(),
-        contact: form.contact.trim() || null,
+        contact: normalizeBrazilPhone(form.contact) || null,
         church: form.church.trim() || null,
         visit_date: form.visit_date || todayInputValue()
       };
@@ -832,12 +841,7 @@ function UnifiedRegistryContent() {
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Telefone/WhatsApp">
-                    <input
-                      className="field-input"
-                      inputMode="tel"
-                      onChange={(event) => setForm({ ...form, phone: event.target.value })}
-                      value={form.phone}
-                    />
+                    <PhoneInput onChange={(phone) => setForm({ ...form, phone })} value={form.phone} />
                   </Field>
                   {form.kind === "pastor" ? (
                     <>
@@ -990,12 +994,8 @@ function UnifiedRegistryContent() {
                   />
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label="Contato">
-                    <input
-                      className="field-input"
-                      onChange={(event) => setForm({ ...form, contact: event.target.value })}
-                      value={form.contact}
-                    />
+                  <Field label="Telefone/WhatsApp">
+                    <PhoneInput onChange={(contact) => setForm({ ...form, contact })} value={form.contact} />
                   </Field>
                   <Field label="Igreja">
                     <input

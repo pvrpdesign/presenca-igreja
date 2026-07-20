@@ -31,6 +31,38 @@ export function normalizeBrazilPhone(value?: string | null, defaultDdd = "71") {
   return digits;
 }
 
+export function formatBrazilPhone(value?: string | null) {
+  let digits = (value ?? "").replace(/\D/g, "");
+
+  if (digits.startsWith("55") && digits.length > 11) {
+    digits = digits.slice(2);
+  }
+
+  digits = digits.slice(0, 11);
+  if (!digits) return "";
+  if (digits.length <= 2) return `(${digits}`;
+
+  const ddd = digits.slice(0, 2);
+  const number = digits.slice(2);
+  if (number.length <= 4) return `(${ddd}) ${number}`;
+
+  const firstPartLength = number.length > 8 ? 5 : 4;
+  return `(${ddd}) ${number.slice(0, firstPartLength)}-${number.slice(firstPartLength)}`;
+}
+
+export function isValidBrazilPhone(value?: string | null) {
+  let digits = (value ?? "").replace(/\D/g, "");
+  if (!digits) return true;
+
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) {
+    digits = digits.slice(2);
+  }
+
+  if (digits.length !== 10 && digits.length !== 11) return false;
+  if (digits.startsWith("00")) return false;
+  return !/^(\d)\1+$/.test(digits);
+}
+
 export function normalizePhoneDigits(value?: string | null) {
   return normalizeBrazilPhone(value);
 }

@@ -5,9 +5,11 @@ import Link from "next/link";
 import { CheckCircle2, Church, LoaderCircle, Phone, ShieldCheck } from "lucide-react";
 import { useParams } from "next/navigation";
 import { Field, Notice } from "@/components/ui";
+import { PhoneInput } from "@/components/PhoneInput";
 import { SoftwareCopyright } from "@/components/SoftwareCopyright";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { supabase } from "@/lib/supabase";
+import { isValidBrazilPhone, normalizeBrazilPhone } from "@/lib/duplicates";
 
 type CheckinResult = {
   status: string;
@@ -97,6 +99,12 @@ export default function MemberCheckinPage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setResult(null);
+
+    if (!isValidBrazilPhone(phone)) {
+      setResult({ status: "invalid_phone" });
+      return;
+    }
+
     setIsSubmitting(true);
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 12000);
@@ -104,7 +112,7 @@ export default function MemberCheckinPage() {
     try {
       const { data, error } = await supabase.rpc("register_member_self_checkin", {
         p_token: token,
-        p_phone: phone
+        p_phone: normalizeBrazilPhone(phone)
       }).abortSignal(controller.signal);
 
       setResult(error ? { status: "error" } : (data as CheckinResult));
@@ -147,16 +155,7 @@ export default function MemberCheckinPage() {
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
                     size={18}
                   />
-                  <input
-                    autoComplete="tel"
-                    autoFocus
-                    className="field-input pl-10"
-                    inputMode="tel"
-                    onChange={(event) => setPhone(event.target.value)}
-                    placeholder="Ex.: (71) 99999-9999"
-                    required
-                    value={phone}
-                  />
+                  <PhoneInput autoFocus className="field-input pl-10" onChange={setPhone} required value={phone} />
                 </div>
               </Field>
 

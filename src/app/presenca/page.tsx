@@ -12,10 +12,11 @@ import {
   UsersRound
 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
+import { PhoneInput } from "@/components/PhoneInput";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDateBR, inferServiceType, serviceTitle, SERVICE_LABELS, todayInputValue } from "@/lib/date";
-import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
+import { findPotentialDuplicate, isValidBrazilPhone, normalizeBrazilPhone } from "@/lib/duplicates";
 import { supabase } from "@/lib/supabase";
 import type {
   Attendance,
@@ -810,6 +811,12 @@ function AttendanceContent() {
     setIsMarking(true);
     setMessage("");
 
+    if (!isValidBrazilPhone(quickVisitor.phone)) {
+      setMessage("Informe um telefone válido com DDD, por exemplo: (71) 99999-9999.");
+      setIsMarking(false);
+      return;
+    }
+
     const payload = {
       full_name: quickVisitor.full_name.trim(),
       phone: normalizeBrazilPhone(quickVisitor.phone) || null,
@@ -1165,14 +1172,7 @@ function AttendanceContent() {
                   />
                 </Field>
                 <Field label="Telefone/WhatsApp">
-                  <input
-                    className="field-input"
-                    inputMode="tel"
-                    onChange={(event) =>
-                      setQuickVisitor({ ...quickVisitor, phone: event.target.value })
-                    }
-                    value={quickVisitor.phone}
-                  />
+                  <PhoneInput onChange={(phone) => setQuickVisitor({ ...quickVisitor, phone })} value={quickVisitor.phone} />
                 </Field>
                 <Field label="Cidade/bairro">
                   <input

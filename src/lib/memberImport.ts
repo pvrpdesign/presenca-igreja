@@ -1,5 +1,5 @@
 import type { Member, MemberStatus } from "@/lib/types";
-import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
+import { findPotentialDuplicate, isValidBrazilPhone, normalizeBrazilPhone } from "@/lib/duplicates";
 
 export type RawImportRow = Record<string, string>;
 
@@ -316,13 +316,14 @@ export function prepareMemberImportRows(
         if (field) mapped[field] = cleanCell(value);
       });
 
-      mapped.phone = normalizeBrazilPhone(mapped.phone);
-
       const statusResult = parseStatus(mapped.status);
       const errors: string[] = [];
 
       if (!mapped.full_name) errors.push("Nome obrigatório");
+      if (!isValidBrazilPhone(mapped.phone)) errors.push("Telefone incompleto ou sem DDD");
       if (statusResult.error) errors.push(statusResult.error);
+
+      mapped.phone = isValidBrazilPhone(mapped.phone) ? normalizeBrazilPhone(mapped.phone) : mapped.phone;
 
       const isDuplicate =
         Boolean(mapped.full_name) &&

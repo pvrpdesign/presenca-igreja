@@ -16,6 +16,7 @@ import {
   X
 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
+import { PhoneInput } from "@/components/PhoneInput";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -23,7 +24,7 @@ import {
   readMemberImportFile,
   type MemberImportRow
 } from "@/lib/memberImport";
-import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
+import { findPotentialDuplicate, isValidBrazilPhone, normalizeBrazilPhone } from "@/lib/duplicates";
 import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
 import { authorizeDataExport } from "@/lib/exportAudit";
 import { supabase } from "@/lib/supabase";
@@ -187,6 +188,12 @@ function MembersContent() {
     event.preventDefault();
     setMessage("");
     setIsSubmitting(true);
+
+    if (!isValidBrazilPhone(form.phone)) {
+      setMessage("Informe um telefone válido com DDD, por exemplo: (71) 99999-9999.");
+      setIsSubmitting(false);
+      return;
+    }
 
     const payload = {
       full_name: form.full_name.trim(),
@@ -447,12 +454,7 @@ function MembersContent() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Telefone/WhatsApp">
-                <input
-                  className="field-input"
-                  inputMode="tel"
-                  onChange={(event) => setForm({ ...form, phone: event.target.value })}
-                  value={form.phone}
-                />
+                <PhoneInput onChange={(phone) => setForm({ ...form, phone })} value={form.phone} />
               </Field>
               <Field label="Bairro">
                 <input
