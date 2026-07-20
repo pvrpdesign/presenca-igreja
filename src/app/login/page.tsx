@@ -40,6 +40,8 @@ function LoginForm() {
   useEffect(() => {
     if (searchParams.get("senha") === "alterada") {
       setMessage("Senha alterada com sucesso. Entre usando a nova senha.");
+    } else if (searchParams.get("motivo") === "inatividade") {
+      setMessage("Sua sessão foi encerrada após 30 minutos sem atividade. Entre novamente para continuar.");
     }
   }, [searchParams]);
 

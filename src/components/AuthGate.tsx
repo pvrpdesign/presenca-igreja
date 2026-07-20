@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AlertTriangle, ShieldAlert } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
+import { SessionTimeout } from "@/components/SessionTimeout";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import type { UserRole } from "@/lib/types";
 import { useAuth } from "@/contexts/AuthContext";
@@ -128,7 +129,12 @@ export function AuthGate({
     );
   }
 
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppShell>
+      <SessionTimeout />
+      {children}
+    </AppShell>
+  );
 }
 
 function SetupPanel({
