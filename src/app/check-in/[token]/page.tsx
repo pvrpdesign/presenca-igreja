@@ -177,9 +177,12 @@ export default function MemberCheckinPage() {
             <ShieldCheck aria-hidden="true" className="shrink-0" size={16} />
             Seu telefone é usado apenas para localizar seu cadastro de membro.
           </p>
-          <Link className="mt-2 inline-block font-semibold text-forest underline" href="/privacidade">
-            Aviso de Privacidade e canal de atendimento
-          </Link>
+          <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+            <Link className="font-semibold text-forest underline" href="/privacidade">
+              Aviso de Privacidade e canal de atendimento
+            </Link>
+            <Link className="font-semibold text-forest underline" href="/termos">Termos de Uso</Link>
+          </div>
           <SoftwareCopyright className="mt-3 border-t border-line pt-3" />
         </div>
       </div>

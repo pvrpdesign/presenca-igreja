@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Church, Mail, MapPin, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BookOpenCheck, Church, Mail, MapPin, ShieldCheck } from "lucide-react";
 import { SoftwareCopyright } from "@/components/SoftwareCopyright";
 import { privacyContactEmail } from "@/lib/privacy";
 
@@ -141,6 +141,9 @@ export default function PrivacyPage() {
             <Church aria-hidden="true" size={17} />
             IASD Calçada
           </span>
+          <Link className="secondary-button" href="/termos">
+            <BookOpenCheck aria-hidden="true" size={17} /> Termos de Uso
+          </Link>
         </div>
         <SoftwareCopyright className="mt-5 border-t border-line pt-5" />
       </article>

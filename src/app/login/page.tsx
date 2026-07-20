@@ -285,7 +285,11 @@ function LoginForm() {
           )}
         </button>
         <p className="mt-5 text-center text-xs leading-5 text-muted">
-          Ao utilizar este sistema, consulte nosso{" "}
+          Ao entrar, você declara ciência dos{" "}
+          <Link className="font-semibold text-forest underline" href="/termos">
+            Termos de Uso
+          </Link>{" "}
+          e do{" "}
           <Link className="font-semibold text-forest underline" href="/privacidade">
             Aviso de Privacidade
           </Link>
