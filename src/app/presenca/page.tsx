@@ -199,6 +199,7 @@ function AttendanceContent() {
   const [resultFilter, setResultFilter] = useState<ResultFilter>("todos");
   const [markedKeys, setMarkedKeys] = useState<Set<string>>(new Set());
   const [currentAttendances, setCurrentAttendances] = useState<CurrentAttendance[]>([]);
+  const [currentServiceClosed, setCurrentServiceClosed] = useState(false);
   const [attendanceListFilter, setAttendanceListFilter] =
     useState<AttendanceListFilter>("todos");
   const [message, setMessage] = useState("");
@@ -248,16 +249,19 @@ function AttendanceContent() {
   const loadMarked = useCallback(async () => {
     const { data: service } = await supabase
       .from("services")
-      .select("id")
+      .select("id, closed_at")
       .eq("service_date", serviceDate)
       .eq("service_type", serviceType)
       .maybeSingle();
 
     if (!service) {
+      setCurrentServiceClosed(false);
       setMarkedKeys(new Set<string>());
       setCurrentAttendances([]);
       return;
     }
+
+    setCurrentServiceClosed(Boolean(service.closed_at));
 
     const { data } = await supabase
       .from("attendances")
@@ -683,7 +687,7 @@ function AttendanceContent() {
   async function ensureService() {
     const { data: existing } = await supabase
       .from("services")
-      .select("id, service_date, service_type, title, created_by, created_at")
+      .select("id, service_date, service_type, title, checkin_token, checkin_enabled, closed_at, closed_by, created_by, created_at")
       .eq("service_date", serviceDate)
       .eq("service_type", serviceType)
       .maybeSingle();
@@ -698,14 +702,14 @@ function AttendanceContent() {
         title: serviceTitle(serviceDate, serviceType),
         created_by: session?.user.id ?? null
       })
-      .select("id, service_date, service_type, title, created_by, created_at")
+      .select("id, service_date, service_type, title, checkin_token, checkin_enabled, closed_at, closed_by, created_by, created_at")
       .single();
 
     if (!error && data) return data as Service;
 
     const { data: repeated } = await supabase
       .from("services")
-      .select("id, service_date, service_type, title, created_by, created_at")
+      .select("id, service_date, service_type, title, checkin_token, checkin_enabled, closed_at, closed_by, created_by, created_at")
       .eq("service_date", serviceDate)
       .eq("service_type", serviceType)
       .single();
@@ -718,7 +722,18 @@ function AttendanceContent() {
   }
 
   async function insertAttendance(person: Pick<SearchResult, "id" | "kind" | "full_name">) {
+    if (currentServiceClosed) {
+      setMessage("Este culto está encerrado e permite somente consulta.");
+      return;
+    }
+
     const service = await ensureService();
+
+    if (service.closed_at) {
+      setCurrentServiceClosed(true);
+      setMessage("Este culto está encerrado e permite somente consulta.");
+      return;
+    }
 
     const { error } = await supabase.from("attendances").insert({
       person_id: person.id,
@@ -765,6 +780,11 @@ function AttendanceContent() {
   }
 
   async function handleRemoveAttendance(attendance: CurrentAttendance) {
+    if (currentServiceClosed) {
+      setMessage("Este culto está encerrado e permite somente consulta.");
+      return;
+    }
+
     const confirmed = window.confirm(
       `Remover a presença de ${attendance.fullName} neste culto?`
     );
@@ -798,6 +818,11 @@ function AttendanceContent() {
   }
 
   function openQuickVisitor() {
+    if (currentServiceClosed) {
+      setMessage("Este culto está encerrado e permite somente consulta.");
+      return;
+    }
+
     setQuickVisitor({
       ...emptyQuickVisitor,
       full_name: query.trim()
@@ -810,6 +835,12 @@ function AttendanceContent() {
     event.preventDefault();
     setIsMarking(true);
     setMessage("");
+
+    if (currentServiceClosed) {
+      setMessage("Este culto está encerrado e permite somente consulta.");
+      setIsMarking(false);
+      return;
+    }
 
     if (!isValidBrazilPhone(quickVisitor.phone)) {
       setMessage("Informe um telefone válido com DDD, por exemplo: (71) 99999-9999.");
@@ -904,6 +935,16 @@ function AttendanceContent() {
   return (
     <div>
       <PageHeader eyebrow="Check-in" title="Registrar presença" />
+
+      {currentServiceClosed ? (
+        <div className="mb-5">
+          <Notice
+            text="As presenças podem ser consultadas, mas nenhuma inclusão ou remoção será permitida. Somente o administrador pode reabrir o culto pela página Cultos."
+            title="Culto encerrado"
+            tone="warning"
+          />
+        </div>
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <section className="space-y-4">
@@ -1011,7 +1052,7 @@ function AttendanceContent() {
             ) : results.length === 0 && !isSearching ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted">Nenhuma pessoa encontrada.</p>
-                <button className="primary-button w-full sm:w-auto" onClick={openQuickVisitor} type="button">
+                <button className="primary-button w-full sm:w-auto" disabled={currentServiceClosed} onClick={openQuickVisitor} type="button">
                   <UserPlus aria-hidden="true" size={18} />
                   Cadastrar visitante rapidamente
                 </button>
@@ -1019,7 +1060,7 @@ function AttendanceContent() {
             ) : filteredResults.length === 0 && !isSearching ? (
               <div className="space-y-3">
                 <p className="text-sm text-muted">Nenhum resultado neste filtro.</p>
-                <button className="secondary-button w-full sm:w-auto" onClick={openQuickVisitor} type="button">
+                <button className="secondary-button w-full sm:w-auto" disabled={currentServiceClosed} onClick={openQuickVisitor} type="button">
                   <UserPlus aria-hidden="true" size={18} />
                   Cadastrar visitante rapidamente
                 </button>
@@ -1029,7 +1070,7 @@ function AttendanceContent() {
                 {filteredResults.map((person) => (
                   <button
                     className="w-full rounded-card border border-line bg-paper p-3 text-left transition hover:border-forest hover:bg-forest/5 disabled:cursor-not-allowed disabled:opacity-75"
-                    disabled={person.alreadyPresent || isMarking}
+                    disabled={currentServiceClosed || person.alreadyPresent || isMarking}
                     key={`${person.kind}-${person.id}`}
                     onClick={() => handleMark(person)}
                     type="button"
@@ -1062,12 +1103,12 @@ function AttendanceContent() {
                         ) : (
                           <PlusCircle aria-hidden="true" size={18} />
                         )}
-                        {person.alreadyPresent ? "Marcado" : "Marcar presença"}
+                        {person.alreadyPresent ? "Marcado" : currentServiceClosed ? "Somente consulta" : "Marcar presença"}
                       </span>
                     </div>
                   </button>
                 ))}
-                <button className="secondary-button w-full sm:w-auto" onClick={openQuickVisitor} type="button">
+                <button className="secondary-button w-full sm:w-auto" disabled={currentServiceClosed} onClick={openQuickVisitor} type="button">
                   <UserPlus aria-hidden="true" size={18} />
                   Cadastrar visitante rapidamente
                 </button>
@@ -1083,7 +1124,9 @@ function AttendanceContent() {
             </div>
             <h2 className="text-base font-semibold text-ink">{currentServiceText}</h2>
             <p className="mt-2 text-sm leading-6 text-muted">
-              Pessoas já marcadas neste culto ficam bloqueadas para evitar duplicidade.
+              {currentServiceClosed
+                ? "Este culto está encerrado. As informações estão disponíveis somente para consulta."
+                : "Pessoas já marcadas neste culto ficam bloqueadas para evitar duplicidade."}
             </p>
           </section>
 
@@ -1139,12 +1182,12 @@ function AttendanceContent() {
                       </div>
                       <button
                         className="danger-button min-h-9 shrink-0 px-3 py-2"
-                        disabled={removingAttendanceId === attendance.attendanceId}
+                        disabled={currentServiceClosed || removingAttendanceId === attendance.attendanceId}
                         onClick={() => handleRemoveAttendance(attendance)}
                         type="button"
                       >
                         <Trash2 aria-hidden="true" size={15} />
-                        {removingAttendanceId === attendance.attendanceId ? "Removendo..." : "Remover"}
+                        {removingAttendanceId === attendance.attendanceId ? "Removendo..." : currentServiceClosed ? "Bloqueado" : "Remover"}
                       </button>
                     </div>
                   </div>
@@ -1251,7 +1294,7 @@ function AttendanceContent() {
                 ) : null}
 
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <button className="primary-button" disabled={isMarking} type="submit">
+                  <button className="primary-button" disabled={currentServiceClosed || isMarking} type="submit">
                     <CheckCircle2 aria-hidden="true" size={18} />
                     Salvar e marcar
                   </button>

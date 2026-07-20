@@ -9,6 +9,8 @@ import {
   Download,
   Edit3,
   ExternalLink,
+  Lock,
+  LockOpen,
   QrCode,
   RefreshCw,
   Save,
@@ -39,6 +41,8 @@ type ServiceRow = Pick<
   | "title"
   | "checkin_token"
   | "checkin_enabled"
+  | "closed_at"
+  | "closed_by"
   | "created_by"
   | "created_at"
 >;
@@ -133,6 +137,8 @@ function ServicesContent() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
+  const [changingClosureServiceId, setChangingClosureServiceId] = useState<string | null>(null);
+  const [closedByNames, setClosedByNames] = useState<Record<string, string>>({});
   const [qrDialog, setQrDialog] = useState<{
     service: ServiceRow;
     url: string;
@@ -170,7 +176,7 @@ function ServicesContent() {
     let query = supabase
       .from("services")
       .select(
-        "id, service_date, service_type, title, checkin_token, checkin_enabled, created_by, created_at"
+        "id, service_date, service_type, title, checkin_token, checkin_enabled, closed_at, closed_by, created_by, created_at"
       )
       .gte("service_date", startDate)
       .lte("service_date", endDate);
@@ -187,13 +193,21 @@ function ServicesContent() {
     if (error) {
       setServices([]);
       setStatsByService({});
-      setMessage("Não foi possível carregar os cultos. Rode o SQL 17 no Supabase.");
+      setMessage("Não foi possível carregar os cultos. Confira se o SQL 34 foi executado no Supabase.");
       setIsLoading(false);
       return;
     }
 
     const rows = (data ?? []) as ServiceRow[];
     setServices(rows);
+
+    const closedByIds = [...new Set(rows.map((service) => service.closed_by).filter((id): id is string => Boolean(id)))];
+    if (closedByIds.length > 0) {
+      const { data: actorData } = await supabase.rpc("get_followup_actor_names", { p_user_ids: closedByIds });
+      setClosedByNames(Object.fromEntries((actorData ?? []).map((actor) => [actor.user_id, actor.display_name])));
+    } else {
+      setClosedByNames({});
+    }
 
     const serviceIds = rows.map((service) => service.id);
 
@@ -319,6 +333,48 @@ function ServicesContent() {
     }
 
     setMessage("Culto excluído com sucesso.");
+    await loadServices();
+  }
+
+  async function handleClose(service: ServiceRow) {
+    const confirmed = window.confirm(
+      `Encerrar ${serviceDisplayTitle(service)}? Depois disso, nenhuma presença poderá ser adicionada ou removida.`
+    );
+    if (!confirmed) return;
+
+    setChangingClosureServiceId(service.id);
+    setMessage("");
+    const { error } = await supabase.rpc("close_service", { p_service_id: service.id });
+    setChangingClosureServiceId(null);
+
+    if (error) {
+      const needsSql = error.message.includes("close_service") || error.code === "PGRST202";
+      setMessage(needsSql ? "Execute o SQL 34 no Supabase para liberar o encerramento de cultos." : `Não foi possível encerrar: ${error.message}`);
+      return;
+    }
+
+    setMessage("Culto encerrado com sucesso.");
+    await loadServices();
+  }
+
+  async function handleReopen(service: ServiceRow) {
+    const confirmed = window.confirm(
+      `Reabrir ${serviceDisplayTitle(service)}? As presenças poderão ser alteradas novamente.`
+    );
+    if (!confirmed) return;
+
+    setChangingClosureServiceId(service.id);
+    setMessage("");
+    const { error } = await supabase.rpc("reopen_service", { p_service_id: service.id });
+    setChangingClosureServiceId(null);
+
+    if (error) {
+      const needsSql = error.message.includes("reopen_service") || error.code === "PGRST202";
+      setMessage(needsSql ? "Execute o SQL 34 no Supabase para liberar a reabertura de cultos." : `Não foi possível reabrir: ${error.message}`);
+      return;
+    }
+
+    setMessage("Culto reaberto com sucesso.");
     await loadServices();
   }
 
@@ -543,7 +599,11 @@ function ServicesContent() {
                 const stats = statsByService[service.id] ?? emptyStats;
                 const presenceHref = `/presenca?data=${service.service_date}&tipo=${service.service_type}`;
                 const canEditService =
-                  profile?.role === "lideranca" || service.service_date === todayInputValue();
+                  service.closed_at === null
+                  && (profile?.role === "lideranca" || service.service_date === todayInputValue());
+                const canCloseService = profile?.role === "lideranca"
+                  && service.closed_at === null
+                  && service.service_date <= todayInputValue();
 
                 return (
                   <article
@@ -558,8 +618,16 @@ function ServicesContent() {
                           <StatusBadge tone="success">
                             {SERVICE_LABELS[service.service_type]}
                           </StatusBadge>
+                          <StatusBadge tone={service.closed_at ? "warning" : "success"}>
+                            {service.closed_at ? "Encerrado" : "Aberto"}
+                          </StatusBadge>
                         </div>
                         <p className="text-sm text-muted">{formatDateBR(service.service_date)}</p>
+                        {service.closed_at ? (
+                          <p className="mt-1 text-xs text-muted">
+                            Encerrado por {service.closed_by ? closedByNames[service.closed_by] ?? "Liderança" : "Liderança"} em {new Date(service.closed_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Bahia" })}.
+                          </p>
+                        ) : null}
                         <div className="mt-2 flex flex-wrap gap-2">
                           <StatusBadge tone="neutral">{stats.total} presenças</StatusBadge>
                           <StatusBadge tone="neutral">{stats.members} membros</StatusBadge>
@@ -569,19 +637,21 @@ function ServicesContent() {
                         </div>
                       </div>
 
-                      <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[420px] xl:grid-cols-4">
+                      <div className="grid gap-2 sm:grid-cols-2 xl:min-w-[520px] xl:grid-cols-5">
                         <Link className="primary-button min-h-10 px-3 py-2" href={presenceHref}>
-                          Presença
+                          {service.closed_at ? "Consultar" : "Presença"}
                         </Link>
-                        <button
-                          className="secondary-button min-h-10 px-3 py-2"
-                          disabled={isGeneratingQr}
-                          onClick={() => openQrCode(service)}
-                          type="button"
-                        >
-                          <QrCode aria-hidden="true" size={16} />
-                          QR Code
-                        </button>
+                        {!service.closed_at ? (
+                          <button
+                            className="secondary-button min-h-10 px-3 py-2"
+                            disabled={isGeneratingQr}
+                            onClick={() => openQrCode(service)}
+                            type="button"
+                          >
+                            <QrCode aria-hidden="true" size={16} />
+                            QR Code
+                          </button>
+                        ) : null}
                         {canEditService ? (
                           <button
                             className="secondary-button min-h-10 px-3 py-2"
@@ -592,7 +662,29 @@ function ServicesContent() {
                             Editar
                           </button>
                         ) : null}
-                        {canDeleteServices ? (
+                        {canCloseService ? (
+                          <button
+                            className="secondary-button min-h-10 px-3 py-2"
+                            disabled={changingClosureServiceId === service.id}
+                            onClick={() => handleClose(service)}
+                            type="button"
+                          >
+                            <Lock aria-hidden="true" size={16} />
+                            {changingClosureServiceId === service.id ? "Encerrando..." : "Encerrar"}
+                          </button>
+                        ) : null}
+                        {profile?.is_admin && service.closed_at ? (
+                          <button
+                            className="secondary-button min-h-10 px-3 py-2"
+                            disabled={changingClosureServiceId === service.id}
+                            onClick={() => handleReopen(service)}
+                            type="button"
+                          >
+                            <LockOpen aria-hidden="true" size={16} />
+                            {changingClosureServiceId === service.id ? "Reabrindo..." : "Reabrir"}
+                          </button>
+                        ) : null}
+                        {canDeleteServices && !service.closed_at ? (
                           <button
                             className="danger-button min-h-10 px-3 py-2"
                             disabled={deletingServiceId === service.id}

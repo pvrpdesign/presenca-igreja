@@ -67,6 +67,7 @@ Cole cada arquivo inteiro no SQL Editor e execute. Não execute começando no me
 9. Execute `supabase/31_whatsapp_messages.sql` para editar separadamente todas as mensagens automáticas do WhatsApp.
 10. Depois de ativar a verificação em duas etapas na conta administradora, execute `supabase/32_admin_mfa.sql` para exigir o segundo fator também nas permissões do banco de dados.
 11. Execute `supabase/33_duplicate_merge.sql` para liberar a unificação administrativa de cadastros duplicados com preservação dos históricos.
+12. Execute `supabase/34_service_closure.sql` para permitir o encerramento de cultos e bloquear alterações posteriores nas presenças.
 
 O administrador inicial é associado ao usuário com e-mail `sistema@iasdcalcada.com.br`. Para transferir a administração de uma instalação existente para essa conta, execute `supabase/22_transfer_admin.sql` depois que o e-mail estiver cadastrado e confirmado.
 
@@ -143,6 +144,7 @@ O schema completo está em `supabase/schema.sql`. Para execução manual no pain
 - `supabase/31_whatsapp_messages.sql` para disponibilizar todas as mensagens automáticas
 - `supabase/32_admin_mfa.sql` para exigir verificação em duas etapas nas ações administrativas
 - `supabase/33_duplicate_merge.sql` para unificar cadastros duplicados com auditoria
+- `supabase/34_service_closure.sql` para encerrar e reabrir cultos com bloqueio das presenças
 
 Eles criam:
 

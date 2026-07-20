@@ -169,6 +169,8 @@ export type Service = {
   title: string | null;
   checkin_token: string;
   checkin_enabled: boolean;
+  closed_at: string | null;
+  closed_by: string | null;
   created_by: string | null;
   created_at: string;
 };
@@ -388,6 +390,8 @@ export type Database = {
           title?: string | null;
           checkin_token?: string;
           checkin_enabled?: boolean;
+          closed_at?: string | null;
+          closed_by?: string | null;
           created_by?: string | null;
           created_at?: string;
         };
@@ -490,6 +494,14 @@ export type Database = {
           p_person_type: PersonType;
           p_primary_id: string;
         };
+        Returns: Record<string, string>;
+      };
+      close_service: {
+        Args: { p_service_id: string };
+        Returns: Record<string, string>;
+      };
+      reopen_service: {
+        Args: { p_service_id: string };
         Returns: Record<string, string>;
       };
       get_member_checkin_service: {
