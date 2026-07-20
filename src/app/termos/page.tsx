@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, BookOpenCheck, Church, Mail, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BookOpenCheck, Church, ShieldCheck } from "lucide-react";
 import { SoftwareCopyright } from "@/components/SoftwareCopyright";
-import { privacyContactEmail } from "@/lib/privacy";
+import { PrivacyContactEmail } from "@/components/PrivacyContactEmail";
 import { CURRENT_TERMS_DATE_LABEL } from "@/lib/terms";
 
 export const metadata: Metadata = {
@@ -121,11 +121,7 @@ export default function TermsPage() {
               Estes Termos poderão ser atualizados para refletir mudanças legais, operacionais ou de
               segurança. A data da versão vigente estará indicada no início da página.
             </p>
-            {privacyContactEmail ? (
-              <a className="secondary-button mt-4 justify-start" href={`mailto:${privacyContactEmail}`}>
-                <Mail aria-hidden="true" size={17} /> {privacyContactEmail}
-              </a>
-            ) : null}
+            <PrivacyContactEmail className="secondary-button mt-4 justify-start" />
           </section>
 
           <section className="rounded-card border border-forest/20 bg-forest/5 p-4 sm:p-5">

@@ -6,6 +6,7 @@ import { CheckCircle2, Church, LoaderCircle, Phone, ShieldCheck } from "lucide-r
 import { useParams } from "next/navigation";
 import { Field, Notice } from "@/components/ui";
 import { SoftwareCopyright } from "@/components/SoftwareCopyright";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { supabase } from "@/lib/supabase";
 
 type CheckinResult = {
@@ -86,6 +87,7 @@ function checkinMessage(result: CheckinResult) {
 }
 
 export default function MemberCheckinPage() {
+  const { settings } = useSystemSettings();
   const params = useParams<{ token: string }>();
   const token = params.token;
   const [phone, setPhone] = useState("");
@@ -121,7 +123,7 @@ export default function MemberCheckinPage() {
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-forest text-white shadow-soft">
             <Church aria-hidden="true" size={28} />
           </div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-forest">IASD Calçada</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-forest">{settings.church_name}</p>
           <h1 className="mt-1 text-2xl font-semibold text-ink">Check-in de membros</h1>
           <p className="mt-2 text-sm leading-6 text-muted">
             Informe seu WhatsApp para confirmar sua presença no culto.

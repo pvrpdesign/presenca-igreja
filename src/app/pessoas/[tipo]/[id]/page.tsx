@@ -12,6 +12,7 @@ import {
   UserRound
 } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { MetricCard, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { formatDateBR, SERVICE_LABELS, todayInputValue } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
@@ -66,6 +67,7 @@ export default function PersonProfilePage() {
 }
 
 function PersonProfileContent() {
+  const { settings } = useSystemSettings();
   const params = useParams<{ tipo: string; id: string }>();
   const kind: PersonType | null = ["membro", "visitante", "pastor", "musica"].includes(params.tipo)
     ? params.tipo as PersonType
@@ -191,7 +193,9 @@ function PersonProfileContent() {
   const messageUrl = whatsappUrl(
     phone,
     isGuest
-      ? `Olá, ${firstName}! Foi uma alegria receber você na IASD Calçada. Gostaríamos de conversar sobre uma nova participação em nossa igreja.`
+      ? settings.invitation_message
+          .replaceAll("{nome}", firstName)
+          .replaceAll("{igreja}", settings.church_name)
       : undefined
   );
   const kindLabel = member

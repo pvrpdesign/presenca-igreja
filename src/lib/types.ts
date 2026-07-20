@@ -104,6 +104,19 @@ export type TermsAcceptance = {
   accepted_at: string;
 };
 
+export type SystemSettings = {
+  id: boolean;
+  church_name: string;
+  privacy_contact_email: string;
+  member_absence_threshold: number;
+  visitor_absence_threshold: number;
+  session_timeout_minutes: number;
+  thank_you_message: string;
+  invitation_message: string;
+  updated_by: string | null;
+  updated_at: string;
+};
+
 export type Pastor = {
   id: string;
   full_name: string;
@@ -299,6 +312,12 @@ export type Database = {
         Row: TermsAcceptance;
         Insert: never;
         Update: never;
+        Relationships: [];
+      };
+      system_settings: {
+        Row: SystemSettings;
+        Insert: never;
+        Update: Partial<Omit<SystemSettings, "id">>;
         Relationships: [];
       };
       pastors: {

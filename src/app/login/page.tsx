@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { KeyRound, LogIn, Mail, UserPlus } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { Notice } from "@/components/ui";
 import { SoftwareCopyright } from "@/components/SoftwareCopyright";
@@ -23,6 +24,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session, isLoading } = useAuth();
+  const { settings } = useSystemSettings();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -42,9 +44,9 @@ function LoginForm() {
     if (searchParams.get("senha") === "alterada") {
       setMessage("Senha alterada com sucesso. Entre usando a nova senha.");
     } else if (searchParams.get("motivo") === "inatividade") {
-      setMessage("Sua sessão foi encerrada após 30 minutos sem atividade. Entre novamente para continuar.");
+      setMessage(`Sua sessão foi encerrada após ${settings.session_timeout_minutes} minutos sem atividade. Entre novamente para continuar.`);
     }
-  }, [searchParams]);
+  }, [searchParams, settings.session_timeout_minutes]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -120,7 +122,7 @@ function LoginForm() {
       <section className="w-full max-w-md rounded-card border border-line bg-white p-5 shadow-soft sm:p-6">
         <div className="mb-6 text-center">
           <Image
-            alt="Igreja Adventista do Sétimo Dia - Calçada"
+            alt={settings.church_name}
             className="mx-auto mb-4 h-auto w-full max-w-72 object-contain"
             height={220}
             priority

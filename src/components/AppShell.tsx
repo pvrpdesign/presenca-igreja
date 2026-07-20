@@ -10,12 +10,14 @@ import {
   HeartHandshake,
   Home,
   LogOut,
+  Settings,
   ShieldCheck,
   UserPlus
 } from "lucide-react";
 import clsx from "clsx";
 import { SoftwareCopyright } from "@/components/SoftwareCopyright";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 
 const navigation = [
   { href: "/", label: "Início", icon: Home },
@@ -34,8 +36,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { profile, signOut } = useAuth();
+  const { settings } = useSystemSettings();
   const visibleNavigation = profile?.is_admin
-    ? [...navigation, { href: "/usuarios", label: "Usuários", icon: ShieldCheck }]
+    ? [
+        ...navigation,
+        { href: "/usuarios", label: "Usuários", icon: ShieldCheck },
+        { href: "/configuracoes", label: "Config.", icon: Settings }
+      ]
     : profile?.role === "lideranca"
       ? navigation
       : receptionNavigation;
@@ -64,7 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold text-ink">
-                IASD Calçada
+                {settings.church_name}
               </span>
               <span className="block truncate text-xs text-muted">
                 {profile?.is_admin ? "Administrador" : profile?.role === "lideranca" ? "Liderança" : "Recepção"}
@@ -131,9 +138,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <nav
         aria-label="Principal"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-white md:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 overflow-x-auto border-t border-line bg-white md:hidden"
       >
-        <div className="grid" style={{ gridTemplateColumns: `repeat(${visibleNavigation.length}, minmax(0, 1fr))` }}>
+        <div className="grid min-w-max" style={{ gridTemplateColumns: `repeat(${visibleNavigation.length}, 5rem)` }}>
           {visibleNavigation.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;

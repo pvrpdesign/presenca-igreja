@@ -19,6 +19,7 @@ import {
 import { AuthGate } from "@/components/AuthGate";
 import { MetricCard, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { formatDateBR, SERVICE_LABELS, todayInputValue } from "@/lib/date";
 import { supabase } from "@/lib/supabase";
 import { getThankYouWhatsAppUrl } from "@/lib/whatsapp";
@@ -235,8 +236,8 @@ function presentKey(personType: PersonType, serviceId: string) {
   return `${personType}:${serviceId}`;
 }
 
-function isCritical(item: FollowUpItem) {
-  return item.kind === "visitante" ? item.absenceStreak > 3 : item.absenceStreak >= 3;
+function isCritical(item: FollowUpItem, memberThreshold: number, visitorThreshold: number) {
+  return item.absenceStreak >= (item.kind === "visitante" ? visitorThreshold : memberThreshold);
 }
 
 export default function FollowUpPage() {
@@ -249,6 +250,7 @@ export default function FollowUpPage() {
 
 function FollowUpContent() {
   const { session } = useAuth();
+  const { settings } = useSystemSettings();
   const [items, setItems] = useState<FollowUpItem[]>([]);
   const [notesByItem, setNotesByItem] = useState<Record<string, string>>({});
   const [currentService, setCurrentService] = useState<ServiceSummary | null>(null);
@@ -479,7 +481,7 @@ function FollowUpContent() {
     setCurrentService(services[0] ?? null);
     setServiceCount(services.length);
 
-    if (services.length < 2) {
+    if (services.length < Math.min(settings.member_absence_threshold, settings.visitor_absence_threshold)) {
       setItems([]);
       setNotesByItem({});
       setIsLoading(false);
@@ -540,7 +542,7 @@ function FollowUpContent() {
 
         return { ...member, absenceStreak };
       })
-      .filter((member) => member.absenceStreak >= 2);
+      .filter((member) => member.absenceStreak >= settings.member_absence_threshold);
 
     const { data: visitorLastAttendanceData } = await supabase
       .from("attendances")
@@ -576,7 +578,7 @@ function FollowUpContent() {
 
         return { ...visitor, absenceStreak };
       })
-      .filter((visitor) => visitor.absenceStreak >= 2);
+      .filter((visitor) => visitor.absenceStreak >= settings.visitor_absence_threshold);
 
     const memberIds = membersWithStreak.map((member) => member.id);
     const visitorIds = visitorsWithStreak.map((visitor) => visitor.id);
@@ -689,7 +691,12 @@ function FollowUpContent() {
       Object.fromEntries(nextItems.map((item) => [itemKey(item), current[itemKey(item)] ?? "mensagem"]))
     );
     setIsLoading(false);
-  }, [loadActorNames, loadHistory]);
+  }, [
+    loadActorNames,
+    loadHistory,
+    settings.member_absence_threshold,
+    settings.visitor_absence_threshold
+  ]);
 
   useEffect(() => {
     loadFollowUps();
@@ -726,7 +733,11 @@ function FollowUpContent() {
 
   const stats = useMemo(() => {
     const accompanied = items.filter((item) => item.followUp?.status === "acompanhado").length;
-    const critical = items.filter(isCritical).length;
+    const critical = items.filter((item) => isCritical(
+      item,
+      settings.member_absence_threshold,
+      settings.visitor_absence_threshold
+    )).length;
 
     return {
       total: items.length,
@@ -736,7 +747,7 @@ function FollowUpContent() {
       members: items.filter((item) => item.kind === "membro").length,
       visitors: items.filter((item) => item.kind === "visitante").length
     };
-  }, [items]);
+  }, [items, settings.member_absence_threshold, settings.visitor_absence_threshold]);
 
   const filteredItems = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase();
@@ -747,7 +758,11 @@ function FollowUpContent() {
         filter === "todos" ||
         (filter === "pendentes" && !isAccompanied) ||
         (filter === "acompanhados" && isAccompanied) ||
-        (filter === "criticos" && isCritical(item)) ||
+        (filter === "criticos" && isCritical(
+          item,
+          settings.member_absence_threshold,
+          settings.visitor_absence_threshold
+        )) ||
         (filter === "membros" && item.kind === "membro") ||
         (filter === "visitantes" && item.kind === "visitante");
 
@@ -758,7 +773,7 @@ function FollowUpContent() {
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(normalizedSearch));
     });
-  }, [filter, items, search]);
+  }, [filter, items, search, settings.member_absence_threshold, settings.visitor_absence_threshold]);
 
   const currentServiceText = currentService
     ? `${SERVICE_LABELS[currentService.service_type]} em ${formatDateBR(currentService.service_date)}`
@@ -1073,7 +1088,9 @@ function FollowUpContent() {
               const whatsappUrl = getThankYouWhatsAppUrl(
                 guest.contact,
                 guest.fullName,
-                guest.kind
+                guest.kind,
+                settings.thank_you_message,
+                settings.church_name
               );
               const isAccompanied = Boolean(guest.followedUpAt);
               const isThankYou = guest.kind !== "visitante";
@@ -1201,7 +1218,7 @@ function FollowUpContent() {
                 className={`rounded-card border bg-white p-4 shadow-soft sm:p-5 ${
                   isAccompanied
                     ? "border-forest/25"
-                    : isCritical(item)
+                    : isCritical(item, settings.member_absence_threshold, settings.visitor_absence_threshold)
                       ? "border-wine/30"
                       : "border-line"
                 }`}
@@ -1218,7 +1235,7 @@ function FollowUpContent() {
                       {personLabel} • {detailText}
                     </p>
                   </div>
-                  <StatusBadge tone={isAccompanied ? "success" : isCritical(item) ? "danger" : "warning"}>
+                  <StatusBadge tone={isAccompanied ? "success" : isCritical(item, settings.member_absence_threshold, settings.visitor_absence_threshold) ? "danger" : "warning"}>
                     {isAccompanied ? "Acompanhado" : `${item.absenceStreak} sábados`}
                   </StatusBadge>
                 </div>

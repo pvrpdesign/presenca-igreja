@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, BookOpenCheck, Church, Mail, MapPin, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BookOpenCheck, Church, MapPin, ShieldCheck } from "lucide-react";
 import { SoftwareCopyright } from "@/components/SoftwareCopyright";
-import { privacyContactEmail } from "@/lib/privacy";
+import { PrivacyContactEmail } from "@/components/PrivacyContactEmail";
 
 export const metadata: Metadata = {
   title: "Aviso de Privacidade | IASD Calçada",
@@ -109,12 +109,7 @@ export default function PrivacyPage() {
               informe claramente sua solicitação por um dos canais abaixo:
             </p>
             <div className="mt-4 grid gap-3">
-              {privacyContactEmail ? (
-                <a className="secondary-button justify-start" href={`mailto:${privacyContactEmail}`}>
-                  <Mail aria-hidden="true" size={17} />
-                  {privacyContactEmail}
-                </a>
-              ) : null}
+              <PrivacyContactEmail />
               <div className="flex items-start gap-3 rounded-card border border-line bg-white p-3 text-sm text-ink">
                 <MapPin aria-hidden="true" className="mt-0.5 shrink-0 text-forest" size={18} />
                 <span>Atendimento presencial na Secretaria ou recepção da IASD Calçada.</span>

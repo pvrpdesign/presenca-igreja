@@ -6,6 +6,7 @@ import { Archive, Edit3, FileDown, FileText, MessageCircle, Save, Search, UserPl
 import { AuthGate } from "@/components/AuthGate";
 import { Field, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { findPotentialDuplicate, normalizeBrazilPhone } from "@/lib/duplicates";
 import { datedFileName, downloadExcelWorkbook } from "@/lib/exports";
 import { authorizeDataExport } from "@/lib/exportAudit";
@@ -47,6 +48,7 @@ export default function VisitorsPage() {
 
 function VisitorsContent() {
   const { profile, session } = useAuth();
+  const { settings } = useSystemSettings();
   const canArchiveVisitors = profile?.role === "lideranca";
   const canExportVisitors = profile?.role === "lideranca";
   const [form, setForm] = useState(initialForm);
@@ -511,7 +513,9 @@ function VisitorsContent() {
                 const whatsappUrl = getThankYouWhatsAppUrl(
                   visitor.phone,
                   visitor.full_name,
-                  "visitante"
+                  "visitante",
+                  settings.thank_you_message,
+                  settings.church_name
                 );
 
                 return (

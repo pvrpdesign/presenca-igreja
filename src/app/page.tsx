@@ -18,6 +18,7 @@ import {
 import { AuthGate } from "@/components/AuthGate";
 import { MetricCard, Notice, PageHeader, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import {
   formatDateBR,
   inferServiceType,
@@ -89,6 +90,7 @@ export default function DashboardPage() {
 function DashboardContent() {
   const router = useRouter();
   const { profile, session } = useAuth();
+  const { settings } = useSystemSettings();
   const [serviceDate, setServiceDate] = useState(todayInputValue());
   const [serviceType, setServiceType] = useState<ServiceType>(() =>
     inferServiceType(todayInputValue())
@@ -166,7 +168,7 @@ function DashboardContent() {
       .lte("service_date", todayInputValue())
       .order("service_date", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(4);
+      .limit(Math.max(settings.member_absence_threshold, settings.visitor_absence_threshold));
 
     if (servicesError) {
       setAbsenceAlert(emptyAbsenceAlert);
@@ -179,7 +181,12 @@ function DashboardContent() {
       "id" | "service_date" | "service_type" | "created_at"
     >[];
 
-    if (recentServices.length < 2) {
+    const requiredServiceCount = Math.max(
+      settings.member_absence_threshold,
+      settings.visitor_absence_threshold
+    );
+
+    if (recentServices.length < requiredServiceCount) {
       const latestService = recentServices[0];
       setAbsenceAlert({
         missedTwoMembersCount: 0,
@@ -210,8 +217,8 @@ function DashboardContent() {
       (member) => member.id
     );
 
-    const memberServices = recentServices.slice(0, 2);
-    const visitorServices = recentServices.slice(0, 4);
+    const memberServices = recentServices.slice(0, settings.member_absence_threshold);
+    const visitorServices = recentServices.slice(0, settings.visitor_absence_threshold);
     const serviceIds = recentServices.map((service) => service.id);
     const { data: attendancesData, error: attendancesError } = await supabase
       .from("attendances")
@@ -262,7 +269,7 @@ function DashboardContent() {
     const activeVisitorIds = new Set(((activeVisitorsData ?? []) as Pick<Visitor, "id">[]).map((visitor) => visitor.id));
 
     const missedTwoVisitorIds =
-      visitorServices.length < 4
+      visitorServices.length < settings.visitor_absence_threshold
         ? []
         : visitorIdsWithSaturdayHistory.filter((visitorId) =>
             activeVisitorIds.has(visitorId) &&
@@ -307,7 +314,7 @@ function DashboardContent() {
       )}`
     });
     setIsAlertLoading(false);
-  }, [profile?.role]);
+  }, [profile?.role, settings.member_absence_threshold, settings.visitor_absence_threshold]);
 
   const loadRecentActivities = useCallback(async () => {
     if (!canViewLeadershipContent) {
@@ -596,14 +603,17 @@ function DashboardContent() {
                 <p className="text-sm font-semibold text-ink">Alerta de faltas seguidas</p>
                 {isAlertLoading ? (
                   <p className="mt-1 text-sm text-muted">Verificando os últimos sábados...</p>
-                ) : absenceAlert.recentServiceCount < 2 ? (
+                ) : absenceAlert.recentServiceCount < Math.max(
+                    settings.member_absence_threshold,
+                    settings.visitor_absence_threshold
+                  ) ? (
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    Cadastre pelo menos 2 cultos de sábado para o sistema calcular faltas seguidas.
+                    Cadastre pelo menos {Math.max(settings.member_absence_threshold, settings.visitor_absence_threshold)} cultos de sábado para o sistema calcular todos os alertas.
                   </p>
                 ) : (
                   <p className="mt-1 text-sm leading-6 text-muted">
-                    {absenceAlert.missedTwoMembersCount} membros ativos estão há 2 sábados sem aparecer;{" "}
-                    {absenceAlert.missedTwoVisitorsCount} visitantes passaram de 3 sábados sem aparecer.
+                    {absenceAlert.missedTwoMembersCount} membros ativos estão há {settings.member_absence_threshold} sábados sem aparecer;{" "}
+                    {absenceAlert.missedTwoVisitorsCount} visitantes estão há {settings.visitor_absence_threshold} sábados sem aparecer.
                     {" "}
                     {absenceAlert.pendingFollowUpsCount} pendentes de acompanhamento.
                     {absenceAlert.lastServiceText ? ` Último sábado: ${absenceAlert.lastServiceText}.` : ""}

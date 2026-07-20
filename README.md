@@ -63,6 +63,7 @@ NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL=lideranca@iasdcalcada.com.br
 Cole cada arquivo inteiro no SQL Editor e execute. Não execute começando no meio do arquivo.
 
 7. Execute `supabase/21_user_approval.sql` em projetos existentes. Depois disso, novos usuários solicitam acesso pela página de login e ficam bloqueados até a aprovação do administrador em `/usuarios`.
+8. Execute `supabase/30_system_settings.sql` para liberar a página administrativa `/configuracoes`, os limites de ausência, o tempo de sessão e as mensagens padrão.
 
 O administrador inicial é associado ao usuário com e-mail `sistema@iasdcalcada.com.br`. Para transferir a administração de uma instalação existente para essa conta, execute `supabase/22_transfer_admin.sql` depois que o e-mail estiver cadastrado e confirmado.
 

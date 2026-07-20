@@ -4,14 +4,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock3, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 
-const INACTIVITY_LIMIT_MS = 30 * 60 * 1000;
 const WARNING_TIME_MS = 5 * 60 * 1000;
-const WARNING_AFTER_MS = INACTIVITY_LIMIT_MS - WARNING_TIME_MS;
 
 export function SessionTimeout() {
   const router = useRouter();
   const { signOut } = useAuth();
+  const { settings } = useSystemSettings();
+  const inactivityLimitMs = settings.session_timeout_minutes * 60 * 1000;
+  const warningAfterMs = inactivityLimitMs - WARNING_TIME_MS;
   const [isWarningOpen, setIsWarningOpen] = useState(false);
   const lastActivityAt = useRef(Date.now());
   const warningOpenRef = useRef(false);
@@ -47,20 +49,20 @@ export function SessionTimeout() {
     clearTimers();
     const inactiveFor = Date.now() - lastActivityAt.current;
 
-    if (inactiveFor >= INACTIVITY_LIMIT_MS) {
+    if (inactiveFor >= inactivityLimitMs) {
       void logout();
       return;
     }
 
-    if (inactiveFor >= WARNING_AFTER_MS) {
-      openWarning(INACTIVITY_LIMIT_MS - inactiveFor);
+    if (inactiveFor >= warningAfterMs) {
+      openWarning(inactivityLimitMs - inactiveFor);
       return;
     }
 
     warningTimerRef.current = setTimeout(() => {
       openWarning(WARNING_TIME_MS);
-    }, WARNING_AFTER_MS - inactiveFor);
-  }, [clearTimers, logout, openWarning]);
+    }, warningAfterMs - inactiveFor);
+  }, [clearTimers, inactivityLimitMs, logout, openWarning, warningAfterMs]);
 
   const continueSession = useCallback(() => {
     warningOpenRef.current = false;
@@ -111,7 +113,7 @@ export function SessionTimeout() {
         </span>
         <h2 className="text-xl font-semibold text-ink" id="session-timeout-title">Sua sessão está quase encerrando</h2>
         <p className="mt-2 text-sm leading-6 text-muted" id="session-timeout-description">
-          O sistema ficou 25 minutos sem atividade. Por segurança, sua sessão será encerrada em até 5 minutos.
+          O sistema ficou {Math.max(settings.session_timeout_minutes - 5, 5)} minutos sem atividade. Por segurança, sua sessão será encerrada em até 5 minutos.
         </p>
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           <button className="primary-button" onClick={continueSession} type="button">
