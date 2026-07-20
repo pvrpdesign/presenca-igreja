@@ -12,6 +12,11 @@ export const defaultSystemSettings: SystemSettings = {
   visitor_absence_threshold: 4,
   session_timeout_minutes: 30,
   thank_you_message: "Olá, {nome}! Agradecemos por sua presença na {igreja}. Foi uma alegria receber você! Que Deus abençoe sua vida.",
+  member_absence_message: "Olá, {nome}! Sentimos sua falta nos últimos sábados e queremos saber como você está. Podemos orar por você?",
+  visitor_absence_message: "Olá, {nome}! Sentimos sua falta na {igreja} e gostaríamos de saber como você está. Esperamos receber você novamente em breve!",
+  visitor_thank_you_message: "Olá, {nome}! Agradecemos por ter visitado a {igreja}. Foi uma alegria receber você! Esperamos vê-lo novamente. Que Deus abençoe sua vida.",
+  pastor_thank_you_message: "Olá, {nome}! Agradecemos por sua presença na {igreja} e por compartilhar a Palavra de Deus conosco. Foi uma alegria receber você! Que Deus continue abençoando sua vida e seu ministério.",
+  music_thank_you_message: "Olá, {nome}! Agradecemos por ter participado conosco com a música especial na {igreja}. Foi uma alegria receber você! Que Deus abençoe sua vida e seu ministério.",
   invitation_message: "Olá, {nome}! Foi uma alegria receber você na {igreja}. Gostaríamos de conversar sobre uma nova participação em nossa igreja.",
   updated_by: null,
   updated_at: ""
@@ -34,7 +39,7 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
       .eq("id", true)
       .maybeSingle();
 
-    if (!error && data) setSettings(data as SystemSettings);
+    if (!error && data) setSettings({ ...defaultSystemSettings, ...data } as SystemSettings);
   }, []);
 
   useEffect(() => {

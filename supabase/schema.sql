@@ -1157,6 +1157,11 @@ create table if not exists public.system_settings (
   visitor_absence_threshold integer not null default 4 check (visitor_absence_threshold between 1 and 12),
   session_timeout_minutes integer not null default 30 check (session_timeout_minutes between 10 and 240),
   thank_you_message text not null default 'Olá, {nome}! Agradecemos por sua presença na {igreja}. Foi uma alegria receber você! Que Deus abençoe sua vida.' check (char_length(trim(thank_you_message)) between 10 and 1000),
+  member_absence_message text not null default 'Olá, {nome}! Sentimos sua falta nos últimos sábados e queremos saber como você está. Podemos orar por você?' check (char_length(trim(member_absence_message)) between 10 and 1000),
+  visitor_absence_message text not null default 'Olá, {nome}! Sentimos sua falta na {igreja} e gostaríamos de saber como você está. Esperamos receber você novamente em breve!' check (char_length(trim(visitor_absence_message)) between 10 and 1000),
+  visitor_thank_you_message text not null default 'Olá, {nome}! Agradecemos por ter visitado a {igreja}. Foi uma alegria receber você! Esperamos vê-lo novamente. Que Deus abençoe sua vida.' check (char_length(trim(visitor_thank_you_message)) between 10 and 1000),
+  pastor_thank_you_message text not null default 'Olá, {nome}! Agradecemos por sua presença na {igreja} e por compartilhar a Palavra de Deus conosco. Foi uma alegria receber você! Que Deus continue abençoando sua vida e seu ministério.' check (char_length(trim(pastor_thank_you_message)) between 10 and 1000),
+  music_thank_you_message text not null default 'Olá, {nome}! Agradecemos por ter participado conosco com a música especial na {igreja}. Foi uma alegria receber você! Que Deus abençoe sua vida e seu ministério.' check (char_length(trim(music_thank_you_message)) between 10 and 1000),
   invitation_message text not null default 'Olá, {nome}! Foi uma alegria receber você na {igreja}. Gostaríamos de conversar sobre uma nova participação em nossa igreja.' check (char_length(trim(invitation_message)) between 10 and 1000),
   updated_by uuid references auth.users(id) on delete set null,
   updated_at timestamptz not null default now()
@@ -1180,5 +1185,7 @@ grant select on public.system_settings to anon, authenticated;
 grant update (
   church_name, privacy_contact_email, member_absence_threshold,
   visitor_absence_threshold, session_timeout_minutes, thank_you_message,
-  invitation_message, updated_by, updated_at
+  member_absence_message, visitor_absence_message, visitor_thank_you_message,
+  pastor_thank_you_message, music_thank_you_message, invitation_message,
+  updated_by, updated_at
 ) on public.system_settings to authenticated;

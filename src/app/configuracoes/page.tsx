@@ -44,7 +44,11 @@ function SettingsContent() {
         member_absence_threshold: form.member_absence_threshold,
         visitor_absence_threshold: form.visitor_absence_threshold,
         session_timeout_minutes: form.session_timeout_minutes,
-        thank_you_message: form.thank_you_message.trim(),
+        member_absence_message: form.member_absence_message.trim(),
+        visitor_absence_message: form.visitor_absence_message.trim(),
+        visitor_thank_you_message: form.visitor_thank_you_message.trim(),
+        pastor_thank_you_message: form.pastor_thank_you_message.trim(),
+        music_thank_you_message: form.music_thank_you_message.trim(),
         invitation_message: form.invitation_message.trim(),
         updated_by: session.user.id,
         updated_at: new Date().toISOString()
@@ -52,7 +56,7 @@ function SettingsContent() {
       .eq("id", true);
 
     if (error) {
-      setMessage("Não foi possível salvar. Execute o SQL 30 no Supabase e tente novamente.");
+      setMessage("Não foi possível salvar. Execute os SQLs 30 e 31 no Supabase e tente novamente.");
     } else {
       await refreshSettings();
       setMessage("Configurações salvas com sucesso.");
@@ -113,12 +117,13 @@ function SettingsContent() {
           <h2 className="text-lg font-semibold text-ink">Mensagens do WhatsApp</h2>
           <p className="mt-1 text-sm text-muted">Use <strong>{"{nome}"}</strong> para o primeiro nome e <strong>{"{igreja}"}</strong> para o nome da igreja.</p>
           <div className="mt-4 grid gap-4">
+            <MessageField label="Falta de membro" onChange={(value) => update("member_absence_message", value)} value={form.member_absence_message} />
+            <MessageField label="Falta de visitante" onChange={(value) => update("visitor_absence_message", value)} value={form.visitor_absence_message} />
+            <MessageField label="Agradecimento ao visitante" onChange={(value) => update("visitor_thank_you_message", value)} value={form.visitor_thank_you_message} />
+            <MessageField label="Agradecimento ao pastor/pregador" onChange={(value) => update("pastor_thank_you_message", value)} value={form.pastor_thank_you_message} />
+            <MessageField label="Agradecimento à música especial" onChange={(value) => update("music_thank_you_message", value)} value={form.music_thank_you_message} />
             <label className="block">
-              <span className="field-label">Mensagem padrão de agradecimento</span>
-              <textarea className="field-input min-h-28" maxLength={1000} onChange={(event) => update("thank_you_message", event.target.value)} required value={form.thank_you_message} />
-            </label>
-            <label className="block">
-              <span className="field-label">Mensagem padrão para novo convite</span>
+              <span className="field-label">Convite para pastor/pregador ou música especial</span>
               <textarea className="field-input min-h-28" maxLength={1000} onChange={(event) => update("invitation_message", event.target.value)} required value={form.invitation_message} />
             </label>
           </div>
@@ -129,5 +134,14 @@ function SettingsContent() {
         </button>
       </form>
     </div>
+  );
+}
+
+function MessageField({ label, onChange, value }: { label: string; onChange: (value: string) => void; value: string }) {
+  return (
+    <label className="block">
+      <span className="field-label">{label}</span>
+      <textarea className="field-input min-h-28" maxLength={1000} onChange={(event) => onChange(event.target.value)} required value={value} />
+    </label>
   );
 }

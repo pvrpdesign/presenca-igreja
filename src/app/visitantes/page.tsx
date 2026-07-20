@@ -514,7 +514,7 @@ function VisitorsContent() {
                   visitor.phone,
                   visitor.full_name,
                   "visitante",
-                  settings.thank_you_message,
+                  settings.visitor_thank_you_message,
                   settings.church_name
                 );
 

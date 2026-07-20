@@ -158,7 +158,12 @@ function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
 }
 
-function getWhatsAppUrl(phone: string | null, fullName: string) {
+function getWhatsAppUrl(
+  phone: string | null,
+  fullName: string,
+  template: string,
+  churchName: string
+) {
   if (!phone) return null;
 
   const digits = onlyDigits(phone);
@@ -167,7 +172,7 @@ function getWhatsAppUrl(phone: string | null, fullName: string) {
   const normalizedPhone = digits.startsWith("55") ? digits : `55${digits}`;
   const firstName = fullName.trim().split(/\s+/)[0] || fullName;
   const message = encodeURIComponent(
-    `Olá, ${firstName}! Sentimos sua falta nos últimos sábados e queremos saber como você está. Podemos orar por você?`
+    template.replaceAll("{nome}", firstName).replaceAll("{igreja}", churchName)
   );
 
   return `https://wa.me/${normalizedPhone}?text=${message}`;
@@ -1089,7 +1094,11 @@ function FollowUpContent() {
                 guest.contact,
                 guest.fullName,
                 guest.kind,
-                settings.thank_you_message,
+                guest.kind === "pastor"
+                  ? settings.pastor_thank_you_message
+                  : guest.kind === "musica"
+                    ? settings.music_thank_you_message
+                    : settings.visitor_thank_you_message,
                 settings.church_name
               );
               const isAccompanied = Boolean(guest.followedUpAt);
@@ -1205,7 +1214,14 @@ function FollowUpContent() {
         <section className="grid gap-4 lg:grid-cols-2">
           {filteredItems.map((item) => {
             const isAccompanied = item.followUp?.status === "acompanhado";
-            const whatsappUrl = getWhatsAppUrl(item.phone, item.full_name);
+            const whatsappUrl = getWhatsAppUrl(
+              item.phone,
+              item.full_name,
+              item.kind === "visitante"
+                ? settings.visitor_absence_message
+                : settings.member_absence_message,
+              settings.church_name
+            );
             const currentItemKey = itemKey(item);
             const personLabel = item.kind === "membro" ? "Membro" : "Visitante";
             const detailText =

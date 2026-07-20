@@ -112,6 +112,11 @@ export type SystemSettings = {
   visitor_absence_threshold: number;
   session_timeout_minutes: number;
   thank_you_message: string;
+  member_absence_message: string;
+  visitor_absence_message: string;
+  visitor_thank_you_message: string;
+  pastor_thank_you_message: string;
+  music_thank_you_message: string;
   invitation_message: string;
   updated_by: string | null;
   updated_at: string;
