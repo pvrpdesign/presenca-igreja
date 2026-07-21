@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
+  ArrowRight,
   BarChart3,
   CalendarCheck,
   CalendarDays,
@@ -13,13 +14,16 @@ import {
   HeartHandshake,
   Minus,
   Search,
+  ShieldCheck,
+  Sparkles,
   TrendingDown,
   TrendingUp,
   UserPlus,
   UsersRound
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { AuthGate } from "@/components/AuthGate";
-import { MetricCard, Notice, PageHeader, StatusBadge } from "@/components/ui";
+import { Notice, StatusBadge } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import {
@@ -181,8 +185,13 @@ function DashboardContent() {
   const [isAlertLoading, setIsAlertLoading] = useState(false);
   const [isStartingCheckIn, setIsStartingCheckIn] = useState(false);
 
-  const roleLabel = profile?.role === "lideranca" ? "Liderança" : "Recepção";
+  const roleLabel = profile?.is_admin
+    ? "Administrador"
+    : profile?.role === "lideranca"
+      ? "Liderança"
+      : "Recepção";
   const canViewLeadershipContent = profile?.role === "lideranca" || Boolean(profile?.is_admin);
+  const currentMonthLabel = monthLabel(new Date());
 
   const loadSummary = useCallback(async () => {
     setIsLoading(true);
@@ -645,7 +654,7 @@ function DashboardContent() {
       }
     ];
 
-    return profile?.role === "lideranca"
+    return canViewLeadershipContent
       ? [
           ...receptionActions,
           {
@@ -662,37 +671,59 @@ function DashboardContent() {
           }
         ]
       : receptionActions;
-  }, [profile?.role]);
+  }, [canViewLeadershipContent]);
 
   return (
-    <div>
-      <PageHeader eyebrow={roleLabel} title="Dashboard" />
-
-      <section className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {actions.map((action) => {
-          const Icon = action.icon;
-          return (
-            <Link
-              className={`flex min-h-20 items-center justify-between gap-3 rounded-card border border-line p-4 text-sm font-semibold shadow-soft transition ${action.tone}`}
-              href={action.href}
-              key={action.href}
-            >
-              <span>{action.label}</span>
-              <Icon aria-hidden="true" size={22} />
-            </Link>
-          );
-        })}
+    <div className="space-y-6">
+      <section className="relative overflow-hidden rounded-[28px] bg-gradient-to-r from-forestDark via-forest to-wine p-6 text-white shadow-[0_20px_50px_rgba(87,0,36,0.2)] sm:p-8 lg:p-10">
+        <div
+          aria-hidden="true"
+          className="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute -bottom-20 left-1/3 h-52 w-52 rounded-full bg-gold/20 blur-3xl"
+        />
+        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/75">
+              <Sparkles aria-hidden="true" size={16} />
+              {currentMonthLabel}
+            </p>
+            <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">
+              Resumo da igreja
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/75 sm:text-base">
+              Acompanhe as presenças, os cultos e os cuidados com as pessoas em um só lugar.
+            </p>
+          </div>
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white backdrop-blur-sm">
+            <ShieldCheck aria-hidden="true" size={17} />
+            Ambiente protegido • {roleLabel}
+          </span>
+        </div>
       </section>
 
       <section
-        className="mb-5 scroll-mt-24 rounded-card border border-line bg-white p-4 shadow-soft"
+        className="scroll-mt-24 rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-6"
         id="culto-atual"
       >
-        <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-ink">
-          <CalendarDays aria-hidden="true" size={18} />
-          Culto atual
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-forest/10 text-forest">
+              <CalendarDays aria-hidden="true" size={21} />
+            </span>
+            <div>
+              <h2 className="font-semibold text-ink">Culto atual</h2>
+              <p className="text-sm text-muted">Selecione o culto para abrir a marcação de presença.</p>
+            </div>
+          </div>
+          <StatusBadge tone="success">
+            {SERVICE_LABELS[serviceType]} • {formatDateBR(serviceDate)}
+          </StatusBadge>
         </div>
-        <div className="grid gap-3 sm:grid-cols-[1fr_220px_auto] sm:items-end">
+
+        <div className="grid gap-4 sm:grid-cols-[1fr_220px] lg:grid-cols-[1fr_240px_auto] lg:items-end">
           <label>
             <span className="field-label">Data</span>
             <input
@@ -723,7 +754,7 @@ function DashboardContent() {
             </select>
           </label>
           <button
-            className="primary-button sm:mb-0"
+            className="primary-button w-full lg:min-w-56"
             disabled={isStartingCheckIn}
             onClick={handleStartCheckIn}
             type="button"
@@ -733,36 +764,78 @@ function DashboardContent() {
           </button>
         </div>
         {checkInMessage ? (
-          <p className="mt-3 rounded-card border border-gold/40 bg-gold/10 p-3 text-sm text-ink">
+          <p className="mt-4 rounded-xl border border-gold/40 bg-gold/10 p-3 text-sm text-ink">
             {checkInMessage}
           </p>
         ) : null}
-        <p className="mt-3 text-sm text-muted">
-          {SERVICE_LABELS[serviceType]} em {formatDateBR(serviceDate)}
-        </p>
       </section>
 
-      {profile?.role === "lideranca" ? (
+      <section>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-ink">Presença no culto selecionado</h2>
+          <p className="mt-1 text-sm text-muted">Resumo atualizado conforme a data e o tipo de culto.</p>
+        </div>
+        {isLoading ? (
+          <Notice title="Carregando resumo..." />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <DashboardMetric icon={CalendarCheck} label="Total de presentes" value={summary.total} />
+            <DashboardMetric icon={UsersRound} label="Membros presentes" tone="gold" value={summary.members} />
+            <DashboardMetric icon={UserPlus} label="Visitantes presentes" tone="wine" value={summary.visitors} />
+            <DashboardMetric icon={HeartHandshake} label="Pastores presentes" value={summary.pastors} />
+            <DashboardMetric icon={BarChart3} label="Música Especial" tone="gold" value={summary.music} />
+          </div>
+        )}
+      </section>
+
+      <section>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-ink">Acessos rápidos</h2>
+          <p className="mt-1 text-sm text-muted">Atalhos para as tarefas mais usadas no dia a dia.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          {actions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <Link
+                className={`group flex min-h-24 flex-col justify-between gap-4 rounded-2xl border border-line p-4 text-sm font-semibold shadow-soft transition ${action.tone}`}
+                href={action.href}
+                key={action.href}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-current/10">
+                    <Icon aria-hidden="true" size={20} />
+                  </span>
+                  <ArrowRight aria-hidden="true" className="transition group-hover:translate-x-1" size={18} />
+                </div>
+                <span>{action.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      {canViewLeadershipContent ? (
         <section
-          className={`mb-5 rounded-card border p-4 shadow-soft sm:p-5 ${
+          className={`rounded-[24px] border p-5 shadow-soft sm:p-6 ${
             absenceAlert.missedTwoMembersCount + absenceAlert.missedTwoVisitorsCount > 0
               ? "border-wine/30 bg-wine/5"
               : "border-line bg-white"
           }`}
         >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <span
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-card ${
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
                   absenceAlert.missedTwoMembersCount + absenceAlert.missedTwoVisitorsCount > 0
                     ? "bg-wine/10 text-wine"
                     : "bg-forest/10 text-forest"
                 }`}
               >
-                <AlertCircle aria-hidden="true" size={20} />
+                <AlertCircle aria-hidden="true" size={21} />
               </span>
               <div>
-                <p className="text-sm font-semibold text-ink">Alerta de faltas seguidas</p>
+                <p className="font-semibold text-ink">Alerta de faltas seguidas</p>
                 {isAlertLoading ? (
                   <p className="mt-1 text-sm text-muted">Verificando os últimos sábados...</p>
                 ) : absenceAlert.recentServiceCount < Math.max(
@@ -775,90 +848,122 @@ function DashboardContent() {
                 ) : (
                   <p className="mt-1 text-sm leading-6 text-muted">
                     {absenceAlert.missedTwoMembersCount} membros ativos estão há {settings.member_absence_threshold} sábados sem aparecer;{" "}
-                    {absenceAlert.missedTwoVisitorsCount} visitantes estão há {settings.visitor_absence_threshold} sábados sem aparecer.
-                    {" "}
-                    {absenceAlert.pendingFollowUpsCount} pendentes de acompanhamento.
+                    {absenceAlert.missedTwoVisitorsCount} visitantes estão há {settings.visitor_absence_threshold} sábados sem aparecer. {absenceAlert.pendingFollowUpsCount} pendentes de acompanhamento.
                     {absenceAlert.lastServiceText ? ` Último sábado: ${absenceAlert.lastServiceText}.` : ""}
                   </p>
                 )}
               </div>
             </div>
-            <Link className="secondary-button w-full sm:w-auto" href="/acompanhamento">
+            <Link className="secondary-button w-full shrink-0 sm:w-auto" href="/acompanhamento">
               Abrir acompanhamento
+              <ArrowRight aria-hidden="true" size={17} />
             </Link>
           </div>
         </section>
       ) : null}
 
       {canViewLeadershipContent ? (
-        <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
-          <div>
-            <div className="flex items-center gap-2">
-              <BarChart3 aria-hidden="true" className="text-wine" size={20} />
-              <h2 className="text-lg font-semibold text-ink">Comparativo mensal de frequência</h2>
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.75fr)]">
+          <section className="rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-wine/10 text-wine">
+                <BarChart3 aria-hidden="true" size={21} />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Comparativo mensal</h2>
+                <p className="mt-1 text-sm leading-6 text-muted">
+                  Sábados são comparados com sábados; quartas, com quartas.
+                </p>
+              </div>
             </div>
-            <p className="mt-1 text-sm text-muted">Sábados são comparados somente com sábados; quartas, somente com quartas. Cultos especiais não entram neste cálculo.</p>
-          </div>
 
-          {monthComparisonMessage ? <p className="mt-4 text-sm text-wine">{monthComparisonMessage}</p> : null}
-          {isMonthComparisonLoading ? <p className="mt-4 text-sm text-muted">Calculando os dois últimos meses...</p> : null}
-          {!isMonthComparisonLoading && monthComparison ? (
-            <div className="mt-5 space-y-4">
-              <ServiceTypeComparisonPanel
-                comparison={monthComparison.byServiceType.sabado}
-                currentLabel={monthComparison.currentLabel}
-                label="Cultos de sábado"
-                previousLabel={monthComparison.previousLabel}
-              />
-              <ServiceTypeComparisonPanel
-                comparison={monthComparison.byServiceType.quarta}
-                currentLabel={monthComparison.currentLabel}
-                label="Cultos de quarta-feira"
-                previousLabel={monthComparison.previousLabel}
-              />
+            {monthComparisonMessage ? <p className="mt-4 text-sm text-wine">{monthComparisonMessage}</p> : null}
+            {isMonthComparisonLoading ? <p className="mt-4 text-sm text-muted">Calculando os dois últimos meses...</p> : null}
+            {!isMonthComparisonLoading && monthComparison ? (
+              <div className="mt-5 space-y-4">
+                <ServiceTypeComparisonPanel
+                  comparison={monthComparison.byServiceType.sabado}
+                  currentLabel={monthComparison.currentLabel}
+                  label="Cultos de sábado"
+                  previousLabel={monthComparison.previousLabel}
+                />
+                <ServiceTypeComparisonPanel
+                  comparison={monthComparison.byServiceType.quarta}
+                  currentLabel={monthComparison.currentLabel}
+                  label="Cultos de quarta-feira"
+                  previousLabel={monthComparison.previousLabel}
+                />
+              </div>
+            ) : null}
+          </section>
+
+          <section className="rounded-[24px] border border-line bg-white p-5 shadow-soft sm:p-6">
+            <div className="mb-5 flex items-start gap-3">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-wine/10 text-wine">
+                <HistoryIcon aria-hidden="true" size={21} />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold text-ink">Atividades recentes</h2>
+                <p className="mt-1 text-sm text-muted">Últimas movimentações da liderança.</p>
+              </div>
             </div>
-          ) : null}
-        </section>
+            {activitiesMessage ? <p className="mb-3 text-sm text-wine">{activitiesMessage}</p> : null}
+            {isActivitiesLoading ? (
+              <p className="text-sm text-muted">Carregando atividades...</p>
+            ) : recentActivities.length === 0 ? (
+              <p className="text-sm text-muted">Nenhuma atividade registrada até o momento.</p>
+            ) : (
+              <div className="space-y-3">
+                {recentActivities.map((activity) => (
+                  <Link
+                    className="block rounded-2xl border border-line bg-paper/70 p-4 transition hover:border-wine/30 hover:bg-wine/5"
+                    href={activity.href}
+                    key={activity.id}
+                  >
+                    <div className="flex flex-col gap-2">
+                      <p className="font-semibold leading-6 text-ink">{activity.title}</p>
+                      <StatusBadge tone={activity.tone}>{formatActivityDate(activity.performedAt)}</StatusBadge>
+                    </div>
+                    <p className="mt-2 text-sm text-muted">Responsável: {activity.performedBy}</p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       ) : null}
+    </div>
+  );
+}
 
-      {canViewLeadershipContent ? (
-        <section className="mb-5 rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <HistoryIcon aria-hidden="true" className="text-wine" size={20} />
-            <h2 className="text-lg font-semibold text-ink">Atividades recentes</h2>
-          </div>
-          {activitiesMessage ? <p className="mb-3 text-sm text-wine">{activitiesMessage}</p> : null}
-          {isActivitiesLoading ? (
-            <p className="text-sm text-muted">Carregando atividades...</p>
-          ) : recentActivities.length === 0 ? (
-            <p className="text-sm text-muted">Nenhuma atividade registrada até o momento.</p>
-          ) : (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {recentActivities.map((activity) => (
-                <Link className="rounded-xl border border-line bg-paper p-3 transition hover:border-wine/30 hover:bg-wine/5" href={activity.href} key={activity.id}>
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="font-semibold text-ink">{activity.title}</p>
-                    <StatusBadge tone={activity.tone}>{formatActivityDate(activity.performedAt)}</StatusBadge>
-                  </div>
-                  <p className="mt-2 text-sm text-muted">Responsável: {activity.performedBy}</p>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : null}
+function DashboardMetric({
+  icon: Icon,
+  label,
+  tone = "forest",
+  value
+}: {
+  icon: LucideIcon;
+  label: string;
+  tone?: "forest" | "wine" | "gold";
+  value: number | string;
+}) {
+  const toneClasses = {
+    forest: "bg-forest/10 text-forest",
+    wine: "bg-wine/10 text-wine",
+    gold: "bg-gold/20 text-ink"
+  }[tone];
 
-      {isLoading ? (
-        <Notice title="Carregando resumo..." />
-      ) : (
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <MetricCard icon={CalendarCheck} label="Total de presentes" value={summary.total} />
-          <MetricCard icon={UsersRound} label="Membros presentes" tone="gold" value={summary.members} />
-          <MetricCard icon={UserPlus} label="Visitantes presentes" tone="wine" value={summary.visitors} />
-          <MetricCard icon={HeartHandshake} label="Pastores presentes" value={summary.pastors} />
-          <MetricCard icon={BarChart3} label="Música Especial" tone="gold" value={summary.music} />
-        </section>
-      )}
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-line bg-white p-4 shadow-soft sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium leading-5 text-muted">{label}</p>
+          <p className="mt-3 text-3xl font-semibold tracking-tight text-ink">{value}</p>
+        </div>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${toneClasses}`}>
+          <Icon aria-hidden="true" size={21} />
+        </span>
+      </div>
     </div>
   );
 }
@@ -875,7 +980,7 @@ function ServiceTypeComparisonPanel({
   previousLabel: string;
 }) {
   return (
-    <div className="rounded-card border border-line bg-paper/50 p-4">
+    <div className="rounded-2xl border border-line bg-paper/50 p-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <h3 className="font-semibold text-ink">{label}</h3>
         {comparison.percentageChange !== null ? (
