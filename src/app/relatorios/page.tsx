@@ -719,6 +719,7 @@ function ReportsContent() {
             </button>
           </>
         }
+        description="Analise presenças, ausências e evolução dos cultos para apoiar as decisões da liderança."
         eyebrow="Liderança"
         title="Relatórios"
       />

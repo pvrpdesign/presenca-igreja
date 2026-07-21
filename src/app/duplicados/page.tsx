@@ -217,6 +217,7 @@ function DuplicatesContent() {
             <RefreshCw aria-hidden="true" size={17} /> Atualizar
           </button>
         }
+        description="Revise possíveis repetições com segurança antes de unificar qualquer cadastro."
         eyebrow="Administração"
         title="Cadastros duplicados"
       />

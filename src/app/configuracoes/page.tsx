@@ -73,6 +73,7 @@ function SettingsContent() {
             <RefreshCw aria-hidden="true" size={17} /> Atualizar
           </button>
         }
+        description="Defina as regras de acompanhamento, mensagens e preferências gerais da igreja."
         eyebrow="Administração"
         title="Configurações do sistema"
       />

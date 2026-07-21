@@ -171,6 +171,7 @@ function UsersContent() {
             Atualizar
           </button>
         }
+        description="Aprove novos cadastros e mantenha cada pessoa somente com os acessos necessários."
         eyebrow="Administração"
         title="Aprovação de usuários"
       />

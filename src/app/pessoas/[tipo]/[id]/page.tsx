@@ -224,6 +224,7 @@ function PersonProfileContent() {
             </Link>
           </div>
         }
+        description="Consulte o histórico de presença, os contatos e as informações desta pessoa."
         eyebrow={`Ficha de ${kindLabel.toLowerCase()}`}
         title={displayName}
       />

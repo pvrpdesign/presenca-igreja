@@ -982,6 +982,7 @@ function FollowUpContent() {
             Atualizar
           </button>
         }
+        description="Centralize os contatos, as tentativas realizadas e os cuidados que ainda precisam de atenção."
         eyebrow="Liderança"
         title="Acompanhamento"
       />

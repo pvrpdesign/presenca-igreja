@@ -74,10 +74,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+      <header className="sticky top-0 z-30 border-b border-white/80 bg-white/90 shadow-[0_8px_28px_rgba(87,0,36,0.05)] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
           <Link className="flex shrink-0 items-center gap-3" href="/">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-card border border-line bg-white p-1 shadow-soft">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-line bg-white p-1 shadow-soft">
               <Image
                 alt=""
                 aria-hidden="true"
@@ -89,7 +89,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 width={40}
               />
             </span>
-            <span className="hidden w-36 min-w-0 lg:block xl:w-44">
+            <span className="hidden w-36 min-w-0 sm:block xl:w-44">
               <span className="block truncate text-sm font-semibold text-ink">
                 {settings.church_name}
               </span>
@@ -110,7 +110,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   className={clsx(
                     "inline-flex shrink-0 items-center gap-2 rounded-card px-2.5 py-2 text-sm font-medium transition xl:px-3",
                     active
-                      ? "bg-forest text-white"
+                      ? "bg-gradient-to-r from-forest to-wine text-white shadow-[0_8px_20px_rgba(120,0,50,0.16)]"
                       : "text-muted hover:bg-paper hover:text-ink"
                   )}
                 >
@@ -126,7 +126,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   className={clsx(
                     "inline-flex cursor-pointer list-none items-center gap-2 rounded-card px-2.5 py-2 text-sm font-medium transition xl:px-3 [&::-webkit-details-marker]:hidden",
                     moreIsActive
-                      ? "bg-forest text-white"
+                      ? "bg-gradient-to-r from-forest to-wine text-white shadow-[0_8px_20px_rgba(120,0,50,0.16)]"
                       : "text-muted hover:bg-paper hover:text-ink"
                   )}
                 >
@@ -178,7 +178,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 pb-24 pt-5 sm:pt-7 lg:pb-10">
+      <main className="mx-auto max-w-7xl px-4 pb-28 pt-5 sm:px-5 sm:pt-7 lg:pb-10">
         {children}
         <footer className="mt-10 border-t border-line py-5 text-center text-xs text-muted">
           <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
@@ -198,7 +198,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <nav
         aria-label="Principal"
-        className="fixed inset-x-0 bottom-0 z-40 overflow-x-auto border-t border-line bg-white lg:hidden"
+        className="fixed inset-x-3 bottom-3 z-40 overflow-x-auto rounded-[20px] border border-line bg-white/95 shadow-[0_16px_44px_rgba(87,0,36,0.18)] backdrop-blur-xl lg:hidden"
       >
         <div className="grid min-w-max" style={{ gridTemplateColumns: `repeat(${visibleNavigation.length}, 5rem)` }}>
           {visibleNavigation.map((item) => {

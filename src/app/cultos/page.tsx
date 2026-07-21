@@ -425,6 +425,7 @@ function ServicesContent() {
             Atualizar
           </button>
         }
+        description="Organize a agenda, abra o check-in e consulte o histórico de cada culto."
         eyebrow="Agenda"
         title="Cultos"
       />

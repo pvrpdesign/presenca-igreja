@@ -20,10 +20,11 @@ const config: Config = {
         muted: "#71636a"
       },
       boxShadow: {
-        soft: "0 12px 30px rgba(120, 0, 50, 0.08)"
+        soft: "0 14px 38px rgba(87, 0, 36, 0.08)",
+        lift: "0 18px 48px rgba(87, 0, 36, 0.14)"
       },
       borderRadius: {
-        card: "8px"
+        card: "14px"
       }
     }
   },

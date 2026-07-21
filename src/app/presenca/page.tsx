@@ -934,7 +934,11 @@ function AttendanceContent() {
 
   return (
     <div>
-      <PageHeader eyebrow="Check-in" title="Registrar presença" />
+      <PageHeader
+        description="Marque as pessoas presentes com rapidez e acompanhe o movimento do culto em tempo real."
+        eyebrow="Check-in"
+        title="Registrar presença"
+      />
 
       {currentServiceClosed ? (
         <div className="mb-5">

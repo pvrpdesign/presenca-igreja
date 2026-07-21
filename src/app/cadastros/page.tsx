@@ -786,6 +786,7 @@ function UnifiedRegistryContent() {
             </button>
           ) : undefined
         }
+        description="Cadastre membros, visitantes, pastores e músicas especiais em uma única área."
         eyebrow="Cadastro"
         title="Cadastros"
       />

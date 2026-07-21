@@ -192,7 +192,11 @@ function GlobalSearchContent() {
 
   return (
     <div>
-      <PageHeader eyebrow="Liderança" title="Busca geral de pessoas" />
+      <PageHeader
+        description="Encontre rapidamente qualquer pessoa cadastrada pelo nome ou telefone."
+        eyebrow="Liderança"
+        title="Busca geral de pessoas"
+      />
 
       <section className="rounded-card border border-line bg-white p-4 shadow-soft sm:p-5">
         <form className="flex flex-col gap-3 sm:flex-row" onSubmit={performSearch}>

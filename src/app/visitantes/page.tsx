@@ -323,6 +323,7 @@ function VisitorsContent() {
             </button>
           ) : undefined
         }
+        description="Registre novos visitantes e preserve as informações necessárias para o acolhimento."
         eyebrow="Cadastro"
         title="Visitantes"
       />

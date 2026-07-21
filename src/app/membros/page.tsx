@@ -412,6 +412,7 @@ function MembersContent() {
             </button>
           ) : undefined
         }
+        description="Mantenha os dados dos membros organizados e acompanhe a situação de cada cadastro."
         eyebrow="Cadastro"
         title="Membros"
       />
