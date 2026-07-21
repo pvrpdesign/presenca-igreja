@@ -4,7 +4,15 @@ import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { KeyRound, LogIn, Mail, UserPlus } from "lucide-react";
+import {
+  CalendarCheck,
+  HeartHandshake,
+  KeyRound,
+  LogIn,
+  Mail,
+  ShieldCheck,
+  UserPlus
+} from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSystemSettings } from "@/contexts/SystemSettingsContext";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
@@ -118,189 +126,295 @@ function LoginForm() {
     router.replace(redirectTo);
   }
 
+  const pageTitle =
+    mode === "login"
+      ? "Olá, seja bem-vindo(a)"
+      : mode === "signup"
+        ? "Solicite seu acesso"
+        : "Recupere sua senha";
+  const pageDescription =
+    mode === "login"
+      ? "Entre para acessar o controle de presença e acompanhamento."
+      : mode === "signup"
+        ? "Preencha seus dados. O administrador analisará a solicitação antes de liberar o acesso."
+        : "Informe seu e-mail cadastrado para receber o link de recuperação.";
+
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-10">
-      <section className="w-full max-w-md rounded-card border border-line bg-white p-5 shadow-soft sm:p-6">
-        <div className="mb-6 text-center">
-          <Image
-            alt={settings.church_name}
-            className="mx-auto mb-4 h-auto w-full max-w-72 object-contain"
-            height={220}
-            priority
-            src="/iasd-calcada-logo.png"
-            unoptimized
-            width={320}
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#f5ecef] via-paper to-[#eee4e8] px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
+      <section className="grid w-full max-w-6xl overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-[0_24px_70px_rgba(87,0,36,0.15)] lg:min-h-[720px] lg:grid-cols-[1.03fr_0.97fr]">
+        <aside className="relative hidden overflow-hidden bg-gradient-to-br from-forestDark via-forest to-wine p-10 text-white lg:flex lg:flex-col xl:p-12">
+          <div
+            aria-hidden="true"
+            className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/10 blur-2xl"
           />
-          <h1 className="text-xl font-semibold text-ink">
-            {mode === "login"
-              ? "Controle de Presença"
-              : mode === "signup"
-                ? "Solicitar acesso"
-                : "Recuperar senha"}
-          </h1>
-          <p className="text-sm text-muted">
-            {mode === "login"
-              ? "Acesso da recepção e liderança"
-              : mode === "signup"
-                ? "O administrador analisará seu cadastro antes de liberar o sistema"
-                : "Enviaremos um link para o seu e-mail cadastrado"}
-          </p>
-        </div>
-
-        {!isSupabaseConfigured ? (
-          <Notice
-            tone="warning"
-            title="Configure o Supabase"
-            text="Preencha as variáveis no arquivo .env.local antes de entrar."
+          <div
+            aria-hidden="true"
+            className="absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-gold/20 blur-3xl"
           />
-        ) : null}
 
-        <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
-          {mode === "signup" ? (
-            <label className="block">
-              <span className="field-label">Nome completo</span>
-              <input
-                autoComplete="name"
-                className="field-input"
-                disabled={!isSupabaseConfigured || isSubmitting}
-                minLength={3}
-                onChange={(event) => setFullName(event.target.value)}
-                required
-                value={fullName}
-              />
-            </label>
-          ) : null}
-          <label className="block">
-            <span className="field-label">E-mail</span>
-            <input
-              autoComplete="email"
-              className="field-input"
-              disabled={!isSupabaseConfigured || isSubmitting}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-              type="email"
-              value={email}
+          <div className="relative flex h-28 w-64 items-center justify-center rounded-[22px] bg-white p-4 shadow-lg">
+            <Image
+              alt={settings.church_name}
+              className="h-full w-full object-contain"
+              height={190}
+              priority
+              src="/iasd-calcada-logo.png"
+              unoptimized
+              width={250}
             />
-          </label>
+          </div>
 
-          {mode === "signup" ? (
-            <label className="block">
-              <span className="field-label">Perfil solicitado</span>
-              <select
-                className="field-input"
-                disabled={!isSupabaseConfigured || isSubmitting}
-                onChange={(event) => setRequestedRole(event.target.value as UserRole)}
-                value={requestedRole}
-              >
-                <option value="recepcao">Recepção</option>
-                <option value="lideranca">Liderança</option>
-              </select>
-              <span className="mt-1 block text-xs text-muted">
-                A escolha é uma solicitação; o administrador decidirá o acesso liberado.
-              </span>
-            </label>
-          ) : null}
+          <div className="relative my-auto py-10">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-white/70">
+              Controle de presença
+            </p>
+            <h1 className="max-w-lg text-3xl font-semibold leading-tight xl:text-4xl">
+              Cuidar de pessoas começa com uma presença bem registrada.
+            </h1>
+            <p className="mt-4 max-w-lg text-base leading-7 text-white/75">
+              Um ambiente organizado para a recepção e a liderança acompanharem cada pessoa com atenção.
+            </p>
 
-          {mode !== "recovery" ? (
-            <label className="block">
-              <span className="field-label">Senha</span>
-              <input
-                autoComplete={mode === "signup" ? "new-password" : "current-password"}
-                className="field-input"
-                disabled={!isSupabaseConfigured || isSubmitting}
-                onChange={(event) => setPassword(event.target.value)}
-                required
-                minLength={mode === "signup" ? 8 : undefined}
-                type="password"
-                value={password}
+            <div className="mt-8 space-y-3">
+              <LoginBenefit
+                icon={CalendarCheck}
+                text="Presenças organizadas em um só lugar"
               />
-            </label>
-          ) : null}
+              <LoginBenefit
+                icon={HeartHandshake}
+                text="Acompanhamento cuidadoso de membros e visitantes"
+              />
+              <LoginBenefit
+                icon={ShieldCheck}
+                text="Acesso protegido para recepção e liderança"
+              />
+            </div>
+          </div>
 
-          {mode === "login" ? (
+          <p className="relative text-sm text-white/65">
+            {settings.church_name} • Ministério de Recepção
+          </p>
+        </aside>
+
+        <div className="flex items-center px-5 py-7 sm:px-10 sm:py-10 lg:px-12 xl:px-16">
+          <div className="mx-auto w-full max-w-md">
+            <div className="mb-7 flex items-center gap-3 lg:hidden">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-line bg-white p-1.5 shadow-soft">
+                <Image
+                  alt=""
+                  aria-hidden="true"
+                  className="h-full w-full object-contain"
+                  height={52}
+                  priority
+                  src="/iasd-calcada-marca.png"
+                  unoptimized
+                  width={52}
+                />
+              </span>
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-ink">{settings.church_name}</p>
+                <p className="text-sm text-muted">Controle de Presença</p>
+              </div>
+            </div>
+
+            <div className="mb-7">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.24em] text-forest">
+                Acesso seguro
+              </p>
+              <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+                {pageTitle}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-muted">{pageDescription}</p>
+            </div>
+
+            {!isSupabaseConfigured ? (
+              <Notice
+                tone="warning"
+                title="Configure o Supabase"
+                text="Preencha as variáveis no arquivo .env.local antes de entrar."
+              />
+            ) : null}
+
+            <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+              {mode === "signup" ? (
+                <label className="block">
+                  <span className="field-label">Nome completo</span>
+                  <input
+                    autoComplete="name"
+                    className="field-input"
+                    disabled={!isSupabaseConfigured || isSubmitting}
+                    minLength={3}
+                    onChange={(event) => setFullName(event.target.value)}
+                    required
+                    value={fullName}
+                  />
+                </label>
+              ) : null}
+              <label className="block">
+                <span className="field-label">E-mail</span>
+                <input
+                  autoComplete="email"
+                  className="field-input"
+                  disabled={!isSupabaseConfigured || isSubmitting}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
+                  type="email"
+                  value={email}
+                />
+              </label>
+
+              {mode === "signup" ? (
+                <label className="block">
+                  <span className="field-label">Perfil solicitado</span>
+                  <select
+                    className="field-input"
+                    disabled={!isSupabaseConfigured || isSubmitting}
+                    onChange={(event) => setRequestedRole(event.target.value as UserRole)}
+                    value={requestedRole}
+                  >
+                    <option value="recepcao">Recepção</option>
+                    <option value="lideranca">Liderança</option>
+                  </select>
+                  <span className="mt-1 block text-xs text-muted">
+                    A escolha é uma solicitação; o administrador decidirá o acesso liberado.
+                  </span>
+                </label>
+              ) : null}
+
+              {mode !== "recovery" ? (
+                <label className="block">
+                  <span className="field-label">Senha</span>
+                  <input
+                    autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                    className="field-input"
+                    disabled={!isSupabaseConfigured || isSubmitting}
+                    onChange={(event) => setPassword(event.target.value)}
+                    required
+                    minLength={mode === "signup" ? 8 : undefined}
+                    type="password"
+                    value={password}
+                  />
+                </label>
+              ) : null}
+
+              {mode === "login" ? (
+                <button
+                  className="block w-full text-right text-sm font-semibold text-forest underline"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    setMode("recovery");
+                    setMessage("");
+                    setPassword("");
+                  }}
+                  type="button"
+                >
+                  Esqueci minha senha
+                </button>
+              ) : null}
+
+              {message ? (
+                <Notice
+                  title={message}
+                  tone={
+                    message.startsWith("Solicitação enviada") ||
+                    message.startsWith("Se este e-mail") ||
+                    message.startsWith("Senha alterada")
+                      ? "success"
+                      : "warning"
+                  }
+                />
+              ) : null}
+
+              <button
+                className="primary-button w-full"
+                disabled={!isSupabaseConfigured || isSubmitting}
+                type="submit"
+              >
+                {mode === "login" ? (
+                  <LogIn aria-hidden="true" size={18} />
+                ) : mode === "signup" ? (
+                  <UserPlus aria-hidden="true" size={18} />
+                ) : (
+                  <Mail aria-hidden="true" size={18} />
+                )}
+                {isSubmitting
+                  ? mode === "login"
+                    ? "Entrando..."
+                    : "Enviando..."
+                  : mode === "login"
+                    ? "Entrar"
+                    : mode === "signup"
+                      ? "Enviar solicitação"
+                      : "Enviar link de recuperação"}
+              </button>
+            </form>
+
             <button
-              className="block w-full text-right text-sm font-semibold text-forest underline"
+              className="secondary-button mt-3 w-full"
               disabled={isSubmitting}
               onClick={() => {
-                setMode("recovery");
+                setMode((current) => (current === "login" ? "signup" : "login"));
                 setMessage("");
                 setPassword("");
               }}
               type="button"
             >
-              Esqueci minha senha
+              {mode === "login" ? (
+                "Criar meu cadastro"
+              ) : mode === "signup" ? (
+                "Já tenho cadastro"
+              ) : (
+                <>
+                  <KeyRound aria-hidden="true" size={18} /> Voltar para o login
+                </>
+              )}
             </button>
-          ) : null}
+            <InstallAppButton className="secondary-button mt-3 w-full" />
 
-          {message ? (
-            <Notice
-              title={message}
-              tone={
-                message.startsWith("Solicitação enviada") || message.startsWith("Se este e-mail")
-                  || message.startsWith("Senha alterada")
-                  ? "success"
-                  : "warning"
-              }
-            />
-          ) : null}
-
-          <button
-            className="primary-button w-full"
-            disabled={!isSupabaseConfigured || isSubmitting}
-            type="submit"
-          >
-            {mode === "login" ? (
-              <LogIn aria-hidden="true" size={18} />
-            ) : mode === "signup" ? (
-              <UserPlus aria-hidden="true" size={18} />
-            ) : (
-              <Mail aria-hidden="true" size={18} />
-            )}
-            {isSubmitting
-              ? mode === "login"
-                ? "Entrando..."
-                : "Enviando..."
-              : mode === "login"
-                ? "Entrar"
-                : mode === "signup"
-                  ? "Enviar solicitação"
-                  : "Enviar link de recuperação"}
-          </button>
-        </form>
-        <button
-          className="secondary-button mt-3 w-full"
-          disabled={isSubmitting}
-          onClick={() => {
-            setMode((current) => (current === "login" ? "signup" : "login"));
-            setMessage("");
-            setPassword("");
-          }}
-          type="button"
-        >
-          {mode === "login" ? (
-            "Criar meu cadastro"
-          ) : mode === "signup" ? (
-            "Já tenho cadastro"
-          ) : (
-            <>
-              <KeyRound aria-hidden="true" size={18} /> Voltar para o login
-            </>
-          )}
-        </button>
-        <InstallAppButton className="secondary-button mt-3 w-full" />
-        <p className="mt-5 text-center text-xs leading-5 text-muted">
-          Ao entrar, você declara ciência dos{" "}
-          <Link className="font-semibold text-forest underline" href="/termos">
-            Termos de Uso
-          </Link>{" "}
-          e do{" "}
-          <Link className="font-semibold text-forest underline" href="/privacidade">
-            Aviso de Privacidade
-          </Link>
-          .
-        </p>
-        <SoftwareCopyright className="mt-3 border-t border-line pt-3" />
+            <div className="mt-6 border-t border-line pt-5">
+              <div className="flex items-center justify-center gap-2 text-xs text-muted">
+                <ShieldCheck aria-hidden="true" className="text-forest" size={15} />
+                <span>Acesso protegido e dados tratados com transparência.</span>
+              </div>
+              <p className="mt-3 text-center text-xs leading-5 text-muted">
+                Ao entrar, você declara ciência dos{" "}
+                <Link className="font-semibold text-forest underline" href="/termos">
+                  Termos de Uso
+                </Link>{" "}
+                e do{" "}
+                <Link className="font-semibold text-forest underline" href="/privacidade">
+                  Aviso de Privacidade
+                </Link>
+                .
+              </p>
+              <SoftwareCopyright className="mt-3" />
+            </div>
+          </div>
+        </div>
       </section>
     </main>
+  );
+}
+
+function LoginBenefit({
+  icon: Icon,
+  text
+}: {
+  icon: typeof CalendarCheck;
+  text: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/10 px-4 py-3.5 backdrop-blur-sm">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
+        <Icon aria-hidden="true" size={20} />
+      </span>
+      <p className="text-sm font-medium text-white/90">{text}</p>
+      <span
+        aria-hidden="true"
+        className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/50 text-[11px]"
+      >
+        ✓
+      </span>
+    </div>
   );
 }
