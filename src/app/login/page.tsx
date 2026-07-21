@@ -152,15 +152,15 @@ function LoginForm() {
             className="absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-gold/20 blur-3xl"
           />
 
-          <div className="relative flex h-24 w-56 items-center justify-center rounded-[22px] bg-white p-3 shadow-lg sm:h-28 sm:w-64 sm:p-4">
+          <div className="relative w-full max-w-md">
             <Image
               alt={settings.church_name}
-              className="h-full w-full object-contain"
-              height={190}
+              className="h-auto w-full object-contain object-left"
+              height={751}
               priority
-              src="/iasd-calcada-logo.png"
+              src="/iasd-calcada-logo-branca.png"
               unoptimized
-              width={250}
+              width={2094}
             />
           </div>
 
@@ -169,7 +169,7 @@ function LoginForm() {
               Controle de presença
             </p>
             <h1 className="max-w-lg text-2xl font-semibold leading-tight sm:text-3xl xl:text-4xl">
-              Cuidar de pessoas começa com uma presença bem registrada.
+              Cada presença é uma oportunidade de acolher, cuidar e caminhar juntos com Cristo.
             </h1>
             <p className="mt-4 max-w-lg text-sm leading-6 text-white/75 sm:text-base sm:leading-7">
               Um ambiente organizado para a recepção e a liderança acompanharem cada pessoa com atenção.
