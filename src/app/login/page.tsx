@@ -142,7 +142,7 @@ function LoginForm() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[#f5ecef] via-paper to-[#eee4e8] px-3 py-4 sm:px-6 sm:py-8 lg:px-8">
       <section className="grid w-full max-w-6xl overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-[0_24px_70px_rgba(87,0,36,0.15)] lg:min-h-[720px] lg:grid-cols-[1.03fr_0.97fr]">
-        <aside className="relative hidden overflow-hidden bg-gradient-to-br from-forestDark via-forest to-wine p-10 text-white lg:flex lg:flex-col xl:p-12">
+        <aside className="relative flex flex-col overflow-hidden bg-gradient-to-br from-forestDark via-forest to-wine p-6 text-white sm:p-8 lg:p-10 xl:p-12">
           <div
             aria-hidden="true"
             className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/10 blur-2xl"
@@ -152,7 +152,7 @@ function LoginForm() {
             className="absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-gold/20 blur-3xl"
           />
 
-          <div className="relative flex h-28 w-64 items-center justify-center rounded-[22px] bg-white p-4 shadow-lg">
+          <div className="relative flex h-24 w-56 items-center justify-center rounded-[22px] bg-white p-3 shadow-lg sm:h-28 sm:w-64 sm:p-4">
             <Image
               alt={settings.church_name}
               className="h-full w-full object-contain"
@@ -164,18 +164,18 @@ function LoginForm() {
             />
           </div>
 
-          <div className="relative my-auto py-10">
+          <div className="relative my-auto py-7 sm:py-10">
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-white/70">
               Controle de presença
             </p>
-            <h1 className="max-w-lg text-3xl font-semibold leading-tight xl:text-4xl">
+            <h1 className="max-w-lg text-2xl font-semibold leading-tight sm:text-3xl xl:text-4xl">
               Cuidar de pessoas começa com uma presença bem registrada.
             </h1>
-            <p className="mt-4 max-w-lg text-base leading-7 text-white/75">
+            <p className="mt-4 max-w-lg text-sm leading-6 text-white/75 sm:text-base sm:leading-7">
               Um ambiente organizado para a recepção e a liderança acompanharem cada pessoa com atenção.
             </p>
 
-            <div className="mt-8 space-y-3">
+            <div className="mt-6 space-y-3 sm:mt-8">
               <LoginBenefit
                 icon={CalendarCheck}
                 text="Presenças organizadas em um só lugar"
@@ -191,32 +191,13 @@ function LoginForm() {
             </div>
           </div>
 
-          <p className="relative text-sm text-white/65">
+          <p className="relative text-xs text-white/65 sm:text-sm">
             {settings.church_name} • Ministério de Recepção
           </p>
         </aside>
 
         <div className="flex items-center px-5 py-7 sm:px-10 sm:py-10 lg:px-12 xl:px-16">
           <div className="mx-auto w-full max-w-md">
-            <div className="mb-7 flex items-center gap-3 lg:hidden">
-              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-line bg-white p-1.5 shadow-soft">
-                <Image
-                  alt=""
-                  aria-hidden="true"
-                  className="h-full w-full object-contain"
-                  height={52}
-                  priority
-                  src="/iasd-calcada-marca.png"
-                  unoptimized
-                  width={52}
-                />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-ink">{settings.church_name}</p>
-                <p className="text-sm text-muted">Controle de Presença</p>
-              </div>
-            </div>
-
             <div className="mb-7">
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.24em] text-forest">
                 Acesso seguro
